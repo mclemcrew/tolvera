@@ -23,7 +23,7 @@ We would be happy to have you join us on our [Discord](https://discord.gg/ER7tWd
 ## Showcase & Examples
 
 Examples can be found at [iil-examples/tolvera](https://github.com/Intelligent-Instruments-Lab/iil-examples/tree/main/tolvera).
-See also the [guide](https://intelligent-instruments-lab.github.io/tolvera/guide), [reference](https://intelligent-instruments-lab.github.io/tolvera/reference) and [experiments](https://intelligent-instruments-lab.github.io/tolvera/experiments) pages.
+See also the [guide](https://afhverjuekki.github.io/tolvera/guide), [reference](https://afhverjuekki.github.io/tolvera/reference/tolvera/context) and [experiments](https://afhverjuekki.github.io/tolvera/experiments) pages.
 
 [Visit the YouTube Playlist](https://www.youtube.com/embed/ahSXjnYHZLU?&list=PL8bdQleKUA1vNez5gw-pfQB21Q1-vHn3x) (if you'd like to add a video, please get in touch).
 
