@@ -53,6 +53,15 @@ cd tolvera
 poetry install
 ```
 
+## Documentation
+
+Documentation is written using [MkDocs](https://www.mkdocs.org/).
+
+```sh
+mkdocs build
+mkdocs gh-deploy
+```
+
 ## Known Issues & Limitations
 
 - Tölvera currently [does not support Python 3.12 and above](https://github.com/taichi-dev/taichi/issues/8365) - a Python 3.11 installation is recommended.
