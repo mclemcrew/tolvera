@@ -309,7 +309,7 @@ All arguments below can be applied, and in addition:
 --help  Print a help message.
 ```
 
-See also `sketchbook` in [experiments](/experiments).
+See also `sketchbook` in [experiments](experiments.md).
 
 ### Tölvera Context (`tv.ctx`)
 ```
