@@ -23,7 +23,7 @@ We would be happy to have you join us on our [Discord](https://discord.gg/ER7tWd
 ## Showcase & Examples
 
 Examples can be found at [iil-examples/tolvera](https://github.com/Intelligent-Instruments-Lab/iil-examples/tree/main/tolvera).
-See also the [guide](https://intelligent-instruments-lab.github.io/tolvera/guide), [reference](https://intelligent-instruments-lab.github.io/tolvera/reference) and [experiments](https://intelligent-instruments-lab.github.io/tolvera/experiments) pages.
+See also the [guide](https://afhverjuekki.github.io/tolvera/guide), [reference](https://afhverjuekki.github.io/tolvera/reference/tolvera/context) and [experiments](https://afhverjuekki.github.io/tolvera/experiments) pages.
 
 [Visit the YouTube Playlist](https://www.youtube.com/embed/ahSXjnYHZLU?&list=PL8bdQleKUA1vNez5gw-pfQB21Q1-vHn3x) (if you'd like to add a video, please get in touch).
 
@@ -64,12 +64,6 @@ mkdocs gh-deploy
 
 ## Known Issues & Limitations
 
-- Tölvera currently [does not support Python 3.12 and above](https://github.com/taichi-dev/taichi/issues/8365) - a Python 3.11 installation is recommended.
-This can be created in the following way using [miniconda](https://docs.anaconda.com/free/miniconda/index.html):
-```sh
-conda create -n tolvera python=3.11
-conda activate tolvera
-```
 - Tölvera does not support Intel-based Apple devices (due to [`anguilla`](https://github.com/Intelligent-Instruments-Lab/anguilla)'s FAISS dependency, and Mediapipe not supporting Intel Macs).
 - On macOS, [an OpenMP issue](https://github.com/pytorch/pytorch/issues/78490) may prevent Tölvera programs from running, which can be addressed by adding the following environment variable:
 ```sh
