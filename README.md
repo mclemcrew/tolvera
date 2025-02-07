@@ -58,8 +58,9 @@ poetry install
 Documentation is written using [MkDocs](https://www.mkdocs.org/).
 
 ```sh
-mkdocs build
-mkdocs gh-deploy
+mkdocs serve # serve the docs locally
+mkdocs build # build the docs
+mkdocs gh-deploy # deploy via github pages
 ```
 
 ## Known Issues & Limitations
