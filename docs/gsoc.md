@@ -90,7 +90,7 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 - Familiarity with numerical methods
 - Interest in biological/physical systems
 
-### 3. Generative AI/LLM Interface
+### 2. Generative AI/LLM Interface
 
 - **Difficulty**: Intermediate
 - **Size**: 350 hours (large)
@@ -113,7 +113,7 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 - Knowledge of JSON schemas and validation
 - UI/UX design fundamentals
 
-### 2. Physics Module
+### 3. Physics Module
 
 - **Difficulty**: Advanced
 - **Size**: 350 hours (large)
