@@ -75,7 +75,10 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 4. Scalable Particle System
 5. High Performance Computer Vision
 6. Real-time OSC Mapping Engine
-7.  Packaging and Portable Deployment
+7. Packaging and Portable Deployment
+8. Creative Coding Sketchbook
+9. Live Coding Environment
+10. Visual Debugging Tools
 
 ### 1. Expand Artificial Life Model Library
 
@@ -152,12 +155,10 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 
 **Expected Outcomes**:
 
-- Redesigned particle system with spatial acceleration
-- Improved species interaction system
-- Comprehensive benchmarking suite
-- Migration guide for existing code
-- Example programs demonstrating scale improvements
-- Performance comparison across platforms
+- Redesigned particle system with improved performance
+- Thoughtful creative coding APIs for ease of composition with other Tölvera features
+- Benchmarking test, performance comparison across platforms
+- Update examples to demonstrate new system
 
 **Required Skills**:
 
@@ -201,8 +202,8 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 
 - Redesigned OSC mapping API 
 - Improved client generators for Max/MSP, PureData, SuperCollider
-- Built-in OSC monitoring and debugging tools
-- Migration guide for existing code
+- Integration with state (`tv.s`)
+- Integration with `iipyper`'s NDArray Splat operator
 - Example programs showing common mapping patterns
 - Performance benchmarks for real-time audio rate control
 
@@ -236,7 +237,71 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 - Interest in application packaging and deployment
 - Basic knowledge of GPU programming concepts
 
+### 8. Creative Coding Sketchbook
 
+- **Difficulty**: Intermediate
+- **Size**: 350 hours (large)
+
+**Description**: Develop Tölvera's proof-of-concept sketchbook into a creative coding environment inspired by Arduino and Processing. This includes creating a robust CLI tool, sketch manager, and improved development workflow. The project aims to make Tölvera more accessible to artists and creative coders while establishing foundations for a potential standalone creative coding platform.
+
+**Expected Outcomes**:
+
+- Creative sketchbook system with templates, organisation (categories, tags)
+- Consideration of dependency management between sketches
+- CLI tool (`tolvera`) featuring
+- Migration of existing Tölvera examples
+- Documentation and tests for sketchbook functionality
+
+**Required Skills**:
+
+- Python programming 
+- Experience with CLI development
+- Understanding of creative coding workflows
+- Interest in developer tooling
+
+### 9. Live Coding Environment
+
+- **Difficulty**: Intermediate
+- **Size**: 350 hours (large)
+
+**Description**: Create a custom live coding environment for Tölvera that improves upon the current Sardine-based proof-of-concept. The project involves developing an asynchronous REPL specifically designed for Tölvera's needs, with special handling for redefining Taichi kernels and state management. This could include creating a VSCode extension to provide syntax highlighting, code completion, and live coding UI features.
+
+**Expected Outcomes**:
+
+- Custom async REPL with proper Taichi kernel handling and state persistence
+- VSCode extension for syntax highlighting, completion and live evaluation
+- Documentation for live coding patterns and extension usage
+- Performance benchmarks for REPL vs script
+
+**Required Skills**:
+
+- Strong Python and async programming experience
+- Knowledge of REPL design and VSCode extension development
+- Experience with live coding systems and practices
+- Interest in creative coding and developer tooling
+
+Here's a project idea for developing visual debugging tools for Tölvera:
+
+### 10. Visual Debugging Tools
+
+- **Difficulty**: Medium
+- **Size**: 350 hours (large)
+
+**Description**: Create a comprehensive visual debugging toolkit for Tölvera that helps users understand and debug particle systems from multiple perspectives - from individual particle behavior to system-wide patterns. The project draws inspiration from Seymour Papert's constructionist principles and Bret Victor's "ladder of abstraction" approach to create tools that bridge concrete and abstract understanding of particle systems.
+
+**Expected Outcomes**:
+
+- Interactive widget library for visualizing particle properties and behaviors
+- Multi-scale visualization tools from particle to system level views
+- Real-time parameter exploration and modification interfaces  
+- Integration with existing debugging workflows and IDEs
+
+**Required Skills**:
+
+- Python and visualization programming
+- Experience with UI/UX design for developer tools
+- Knowledge of debugging tool architecture
+- Interest in educational technology principles
 
 ## Contact
 
