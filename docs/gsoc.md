@@ -157,6 +157,7 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 
 - Redesigned particle system with improved performance
 - Thoughtful creative coding APIs for ease of composition with other Tölvera features
+- Features for filtering particles based on their properties and behaviours
 - Benchmarking test, performance comparison across platforms
 - Update examples to demonstrate new system
 
