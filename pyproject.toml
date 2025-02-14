@@ -25,7 +25,7 @@ dualsense-controller = "^0.2.0"
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.5.3"
 mkdocs-video = "^1.5.0"
-mkdocstrings = {extras = ["python"], version = "^0.28.0"}
+mkdocstrings = {extras = ["python"], version = "^0.28.1"}
 mkdocs-gen-files = "^0.5.0"
 mkdocs-include-markdown-plugin = "^6.0.4"
 mkdocs-material = "^9.4.8"

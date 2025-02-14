@@ -69,6 +69,14 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 
 ## Project Ideas
 
+1. Expand Artificial Life Model Library
+2. Generative AI/LLM Interface
+3. Physics Module
+4. Scalable Particle System
+5. High Performance Computer Vision
+6. Real-time OSC Mapping Engine
+7.  Packaging and Portable Deployment
+
 ### 1. Expand Artificial Life Model Library
 
 - **Difficulty**: Intermediate
@@ -204,6 +212,31 @@ The secondary mentor(s) will be chosen from Tölvera contributors and collaborat
 - Knowledge of OSC protocol
 - Familiarity with music software
 - Real-time systems experience
+
+### 7.  Packaging and Portable Deployment
+
+- **Difficulty Level**: Advanced
+- **Project Length**: 350 hours
+
+**Description**: Tölvera currently runs as a Python package, but many potential applications would benefit from standalone deployment options. This project aims to create a deployment pipeline that can package Tölvera programs for multiple platforms and use cases, with a focus on maintaining real-time performance and minimal dependencies.
+
+**Expected Outcomes**:
+
+- Research and document different packaging approaches including:
+  - Taichi AOT compilation for GPU-accelerated components
+  - Python compilation via Nuitka for non-Taichi components
+- Implement proof-of-concept deployments for 2-3 target platforms
+- Create template projects and documentation for each supported target
+- Handle feature subsetting (e.g. disable IML/OSC when not needed)
+
+**Required Skills**:
+
+- Python programming
+- Familiarity with C/C++ and build systems (CMake)
+- Interest in application packaging and deployment
+- Basic knowledge of GPU programming concepts
+
+
 
 ## Contact
 
