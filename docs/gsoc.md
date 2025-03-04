@@ -33,7 +33,7 @@ This excerpt from an opinion piece for Mozilla outlines the motivation behind TÃ
 ### Getting Started with TÃ¶lvera
 
 - Install: `pip install tolvera` 
-- [Documentation](https://tolvera.is)
+- [Documentation](http://tolvera.is)
 - [Examples](https://github.com/Intelligent-Instruments-Lab/iil-examples/tree/main/tolvera)
 - [Source Code](https://github.com/afhverjuekki/tolvera)
 - [Discord Community](https://discord.gg/ER7tWds9vM)
