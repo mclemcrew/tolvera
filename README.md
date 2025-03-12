@@ -80,9 +80,9 @@ We welcome [Pull Requests](https://github.com/Intelligent-Instruments-Lab/tolver
 
 - Addressing [Issues](https://github.com/Intelligent-Instruments-Lab/tolvera/issues)
 - Adding features (see [Issues](https://github.com/Intelligent-Instruments-Lab/tolvera/issues) and [Discussion](https://github.com/Intelligent-Instruments-Lab/tolvera/discussion))
-- [Examples](https://github.com/Intelligent-Instruments-Lab/iil-examples/tolvera)
-- [Tests](https://github.com/Intelligent-Instruments-Lab/tolvera/tests)
-- [Documentation](https://github.com/Intelligent-Instruments-Lab/tolvera/docs)
+- [Examples](https://github.com/Intelligent-Instruments-Lab/iil-examples/tree/main/tolvera)
+- [Tests](https://github.com/afhverjuekki/tolvera)
+- [Documentation](https://afhverjuekki.github.io/tolvera/)
 
 ## Community
 
