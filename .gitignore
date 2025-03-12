@@ -1,7 +1,7 @@
 .DS_Store
 
 # files generated when running tolvera applications
-pd/
+pd
 imgui.ini
 
 # Byte-compiled / optimized / DLL files
