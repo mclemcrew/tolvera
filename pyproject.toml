@@ -7,7 +7,7 @@ authors = ["Jack Armitage <jack.armitage@me.com>"]
 readme = "README.md"
 license = "AGPL-3.0"
 repository = "https://github.com/Intelligent-Instruments-Lab/tolvera"
-documentation = "https://intelligent-instruments-lab.github.io/tolvera/"
+documentation = "https://afhverjuekki.github.io/tolvera/"
 
 [tool.poetry.dependencies]
 python = ">=3.10, <3.13"
