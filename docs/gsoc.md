@@ -60,16 +60,19 @@ This excerpt from an opinion piece for Mozilla outlines the motivation behind T�
 ## Project Mentors
 
 The primary project mentor will be [Dr. Jack Armitage](http://jackarmitage.com), creator of Tölvera.
-Jack has experience supervising GSOC projects with BeagleBoard.org and Bela.io, you can read the final publications here:
+Jack has experience supervising GSOC projects with BeagleBoard.org and Bela.io, you can read the original proposals and final publications here:
 
-- [Differentiable Logic for Interactive Systems and Generative Music](https://ijc8.me/2024/08/26/gsoc-difflogic/)
-- [Bela-IREE: An Approach to Embedded Machine Learning for Real-Time Music Interaction](https://aimc2023.pubpub.org/pub/t2l10z49/release/3) 
+- Differentiable Logic for Interactive Systems and Generative Music ([Proposal](https://gsoc.beagleboard.org/proposals/2024/ijc/index.html), [Final Report](https://ijc8.me/2024/08/26/gsoc-difflogic/))
+- Bela-IREE: An Approach to Embedded Machine Learning for Real-Time Music Interaction ([Proposal](https://elinux.org/BeagleBoard/GSoC/2022_Proposal/Running_Machine_Learning_Models_on_Bela), [Final Report](https://aimc2023.pubpub.org/pub/t2l10z49/release/3))
 
 The secondary mentor(s) will be chosen from Tölvera contributors and collaborators, based on the project itself:
 
+- [Luke Iannini](https://github.com/lukexi), Researcher and Artist, [Dynamicland.org](http://dynamicland.org).
+- [Piotr Rybicki](https://www.linkedin.com/in/piotr-rybicki-584940142/), Computer Scientist, with a keen interest in artificial life, and expertise in low-level computer graphics.
+- [Elias Najarro](https://najarro.science/), Ph.D. fellow at the Robotics, Evolution & Artificial Life Laboratory, IT University of Copenhagen, working on self-organisation and AI.
+- [Piotr Walas](https://github.com/PeterWaIIace), Research & Development Engineer, and Conference Chair of the [Emerging Researchers in ALife](https://sites.google.com/view/emergingresearchersinalife/home) community.
 - [Victor Shepardson](https://iil.is/people#victor-shepardson), PhD Student, Intelligent Instruments Lab. Victor created `iipyper` and `anguilla`, the libraries that Tölvera relies on for OSC and IML.
 - [Miguel Crozzoli](https://iil.is/people#miguel-angel-crozzoli), PhD Student, Intelligent Instruments Lab. Miguel is using Tölvera for sonification of climate datasets.
-- [Piotr Rybicki](https://www.linkedin.com/in/piotr-rybicki-584940142/), Computer Scientist. Piotr has a keen interest in artificial life.
 - [Robin Morabito](https://linktr.ee/bobhermit), Biologist & Artist. Robin has been experimenting with Tölvera for DNA visualisation.
 
 ## Project Ideas
