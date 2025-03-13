@@ -47,7 +47,12 @@ This excerpt from an opinion piece for Mozilla outlines the motivation behind TÃ
 4. Discuss potential project ideas with mentors on Discord. Below you will find some project ideas, equally you are welcome to share your own idea.
 5. Write a project application following the [PSF template](https://github.com/python-gsoc/python-gsoc.github.io/blob/master/ApplicationTemplate.md).
 6. Share drafts of your application on Discord for discussion and feedback (this step is essential and valuable!).
-7. Submit your application.
+7. Attend the weekly GSoC Office Hours on Discord (optional - join Discord for details) 
+8. March 24: contributor application period begins
+9. March 27: submit proposal first draft for review in order to receive feedback.
+10. April 3: proposal second draft for review in order to receive feedback.
+11. April 8: submit final proposals.
+12. May 8: accepted contributor projects announced.
 
 !!! warning
     We follow [Python GSOC's deadlines](https://python-gsoc.org/deadlines.html), which are separate to the official [GSOC Timeline](https://developers.google.com/open-source/gsoc/timeline).
