@@ -68,6 +68,7 @@ Jack has experience supervising GSOC projects with BeagleBoard.org and Bela.io, 
 The secondary mentor(s) will be chosen from Tölvera contributors and collaborators, based on the project itself:
 
 - [Luke Iannini](https://github.com/lukexi), Researcher and Artist, [Dynamicland.org](http://dynamicland.org).
+- [Dr. Alyssa M. Adams](https://alyssamadams.me/), Research Scientist at Cross Labs, developing new understandings of living systems.
 - [Piotr Rybicki](https://www.linkedin.com/in/piotr-rybicki-584940142/), Computer Scientist, with a keen interest in artificial life, and expertise in low-level computer graphics.
 - [Elias Najarro](https://najarro.science/), Ph.D. fellow at the Robotics, Evolution & Artificial Life Laboratory, IT University of Copenhagen, working on self-organisation and AI.
 - [Piotr Walas](https://github.com/PeterWaIIace), Research & Development Engineer, and Conference Chair of the [Emerging Researchers in ALife](https://sites.google.com/view/emergingresearchersinalife/home) community.
