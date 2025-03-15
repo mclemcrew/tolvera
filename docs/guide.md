@@ -8,7 +8,7 @@ hide:
 
 This guide provides an overview of the Tölvera `v0.1.0` API:
 
-- For specific methods available in each area, see [Reference](/reference/tolvera/context).
+- For specific methods available in each area, see [Reference](/tolvera/reference/tolvera/context).
 - More code examples are available [here](https://github.com/Intelligent-Instruments-Lab/iil-examples/tree/main/tolvera).
 
 The `v0.2.0` API will be different, so everything here is subject to change.
