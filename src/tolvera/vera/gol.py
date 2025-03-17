@@ -151,13 +151,9 @@ class GOL:
 
     @ti.kernel
     def draw(self):
-        c = ti.Vector(self.dead_c)
         for i, j in self.tv.s.gol_cells.field:
             cell = self.tv.s.gol_cells.field[i,j]
-            if cell.alive == 1:
-                c = ti.Vector(self.alive_c)
-            else:
-                c = ti.Vector(self.dead_c)
+            c = ti.Vector(self.alive_c) if cell.alive == 1 else ti.Vector(self.dead_c)
             self.px.rect(i * self.cell_size, j * self.cell_size, self.cell_size, self.cell_size, c)
 
     def step(self):
