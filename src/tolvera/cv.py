@@ -6,21 +6,24 @@ and converting between OpenCV's image representation and Tolvera's pixel represe
 
 Example:
     Basic usage with webcam input.
-    ```py
-    import taichi as ti
-    from tolvera import Tolvera, run
+    
+    $ python tolvera/cv/show_camera.py --cv True --camera True --device 0
 
-    def main(**kwargs):
-        tv = Tolvera(**kwargs)
-        cv = tv.CV(camera=True, device=0)  # Use default webcam
+    ```py
+        from tolvera import Tolvera, run
+
+        def main(**kwargs):
+            tv = Tolvera(**kwargs)
+
+            @tv.render 
+            def _():
+                tv.cv()
+                tv.px.set(tv.cv.px)
+                return tv.px
+
+        if __name__ == '__main__':
+            run(main)
         
-        @tv.render
-        def _():
-            cv()  # Process a frame from the camera
-            return cv.px  # Return the pixels for rendering
-            
-    if __name__ == '__main__':
-        run(main)
     ```
 """
 
@@ -289,7 +292,7 @@ class CV:
             float: Percentage of different pixels.
         """
         self.diff = cv.absdiff(a, b)
-        diff = self.diff
+        diff = self.diff #.astype(np.uint8)
         self.diff_p = (np.count_nonzero(diff) * 100) / diff.size
         print('diff', self.diff_p)
         return self.diff_p
