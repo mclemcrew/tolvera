@@ -14,12 +14,10 @@ from ..osc.update import Updater
 
 from .face_mesh_connections import *
 
-
 @ti.dataclass
 class FaceMeshConnection:
     a: ti.i32
     b: ti.i32
-
 
 @ti.data_oriented
 class MPFaceMesh:
@@ -56,8 +54,8 @@ class MPFaceMesh:
         self.setup_connections()
 
         self.face_mesh_np = {
-            'pxnorm': np.zeros((self.config['max_num_faces'], self.n_points, 3), np.float32),
-            'px': np.zeros((self.config['max_num_faces'], self.n_points, 2), np.float32),
+            'pxnorm':np.zeros((self.config['max_num_faces'], self.n_points, 3), np.float32),
+            'px':np.zeros((self.config['max_num_faces'], self.n_points, 2), np.float32),
         }
         self.ctx.s.face_mesh = {
             'state': {
@@ -136,8 +134,8 @@ class MPFaceMesh:
 
         for i, face in enumerate(self.results.multi_face_landmarks):
             for j, lm in enumerate(face.landmark):
-                pxnorm = np.array([1 - lm.x, 1 - lm.y, 1 - lm.z])
-                px = np.array([self.ctx.x * (1 - lm.x), self.ctx.y * (1 - lm.y)])
+                pxnorm = np.array([1-lm.x, 1-lm.y, 1-lm.z])
+                px = np.array([self.ctx.x*(1-lm.x), self.ctx.y*(1-lm.y)])
                 self.face_mesh_np['pxnorm'][i, j] = pxnorm
                 self.face_mesh_np['px'][i, j] = px
         self.ctx.s.face_mesh.set_from_nddict(self.face_mesh_np)
@@ -153,7 +151,7 @@ class MPFaceMesh:
         if self.detected[None] > 0:
             self.draw_face_lms(5, ti.Vector([1, 1, 1, 1]))
             self.draw_face_conns(ti.Vector([1, 1, 1, 1]))
-
+    
     @ti.func
     def draw_face_lms(self, r, rgba):
         """Draw all landmarks for detected faces.
