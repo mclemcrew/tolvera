@@ -372,7 +372,7 @@ class Pixels:
 
     @ti.func
     def circle(self, x: ti.i32, y: ti.i32, r: ti.i32, rgba: vec4, fill: ti.i32 = 1):
-        """Draw a filled circle.
+        """Draw a circle.
 
         Args:
             x (ti.i32): X position.
@@ -423,7 +423,7 @@ class Pixels:
 
     @ti.func
     def triangle(self, a: vec2, b: vec2, c: vec2, rgba: vec4, fill: ti.i32 = 1):
-        """Draw a filled triangle.
+        """Draw a triangle.
 
         Args:
             a (vec2): Point A.
@@ -438,7 +438,7 @@ class Pixels:
 
     @ti.func
     def polygon(self, x: ti.template(), y: ti.template(), rgba: vec4, fill: ti.i32 = 1):
-        """Draw a filled polygon.
+        """Draw a polygon.
         
         Polygons are drawn according to the polygon mode, which can be "crossing" 
         (default) or "winding". First, the bounding box of the polygon is calculated.
