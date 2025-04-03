@@ -83,6 +83,7 @@ class Pixels:
             "circle": 3,
             "triangle": 4,
             "polygon": 5,
+            "rounded_rect": 6
         }
 
     
@@ -211,6 +212,51 @@ class Pixels:
         # TODO: gradients, lerp with ti.math.mix(x, y, a)
         for i, j in ti.ndrange(w, h):
             self.px.rgba[x + i, y + j] = rgba
+            
+    @ti.func
+    def rounded_rect(self, x: ti.i32, y: ti.i32, w: ti.i32, h: ti.i32, r: ti.i32, rgba: vec4):
+        """Draw a filled rounded rectangle.
+
+        Args:
+            x (ti.i32): X position of the top-left corner.
+            y (ti.i32): Y position of the top-left corner.
+            w (ti.i32): Width.
+            h (ti.i32): Height.
+            r (ti.i32): Corner radius.
+            rgba (vec4): Colour.
+        """
+        # Clamp radius to be at most half the smaller dimension
+        r = ti.min(r, ti.min(w, h) // 2)
+
+        for i, j in ti.ndrange((x, x + w), (y, y + h)):
+            if 0 <= i < self.x and 0 <= j < self.y:
+                
+                # Calculate distances to the nearest corner centers
+                cx, cy = 0, 0
+                if i < x + r:
+                    cx = x + r
+                elif i >= x + w - r:
+                    cx = x + w - r
+                else:
+                    cx = i
+
+                if j < y + r:
+                    cy = y + r
+                elif j >= y + h - r:
+                    cy = y + h - r
+                else:
+                    cy = j
+
+                # Check if inside the rect or the rounded corner radius
+                is_inside = True
+                if (i < x + r or i >= x + w - r) and (j < y + r or j >= y + h - r):
+                    
+                    dist_sq = (i - cx)**2 + (j - cy)**2
+                    if dist_sq >= r**2:
+                        is_inside = False # Outside the rounded corner
+
+                if is_inside:
+                    self.px.rgba[i, j] = rgba
 
     @ti.kernel
     def stamp(self, x: ti.i32, y: ti.i32, px: ti.template()):
@@ -779,6 +825,8 @@ class Pixels:
                 self.triangle(a, b, c, rgba)
             # elif shape == 5:
             #     self.polygon(px, py, rgba)
+            elif shape == 6:
+                self.rounded_rect(px, py, side, side, p.size, rgba)
 
     def rgba_from_px(self, px):
         """Get rgba from pixels.
