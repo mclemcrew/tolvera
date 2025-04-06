@@ -137,6 +137,33 @@ async def get_full_guide() -> str:
     else:
         return content
 
+@mcp.resource("tolvera://docs/gsoc") 
+async def get_full_guide() -> str: 
+    """Provides the full content of gsoc.md."""
+    content, error = _read_file(TOLVERA_DOCS_DIRECTORY, "gsco.md", "gsoc doc")
+    if error:
+        return f"Error retrieving documentation: {error}" 
+    else:
+        return content
+    
+@mcp.resource("tolvera://docs/examples") 
+async def get_full_guide() -> str: 
+    """Provides the full content of examples.md."""
+    content, error = _read_file(TOLVERA_DOCS_DIRECTORY, "examples.md", "examples doc")
+    if error:
+        return f"Error retrieving documentation: {error}" 
+    else:
+        return content
+    
+@mcp.resource("tolvera://docs/experiments") 
+async def get_full_guide() -> str: 
+    """Provides the full content of examples.md."""
+    content, error = _read_file(TOLVERA_DOCS_DIRECTORY, "experiments.md", "experiments doc")
+    if error:
+        return f"Error retrieving documentation: {error}" 
+    else:
+        return content
+
 @mcp.resource("tolvera://source/pixels") 
 async def get_pixels_source() -> str: 
     """Provides the source code for the Pixels (tv.px) module."""
