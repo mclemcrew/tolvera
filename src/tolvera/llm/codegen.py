@@ -81,9 +81,8 @@ def _get_rgba_from_llm(color_name: str, llm_model_name: str) -> list[float] | No
             return None
 
         parsed_data = json.loads(cleaned_json_string)
-
-        # Validate the parsed data for the color; it must be a list of 4 numbers
-        if (isinstance(parsed_data, list) and 
+        
+        if (isinstance(parsed_data, list) and # Validate the parsed data for the color; it must be a list of 4 numbers
                 len(parsed_data) == 4 and 
                 all(isinstance(x, (int, float)) for x in parsed_data)):
                 
@@ -93,7 +92,7 @@ def _get_rgba_from_llm(color_name: str, llm_model_name: str) -> list[float] | No
                 else max(0.0, min(1.0, float(x))) 
                 for x in parsed_data
             ]
-            normalized_rgba[3] = 1.0  # Assert alpha is 1.0
+            normalized_rgba[3] = 1.0  # alpha should just be 1.0
             
             return normalized_rgba
         return None
