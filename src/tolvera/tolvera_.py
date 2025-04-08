@@ -159,15 +159,7 @@ class Tolvera:
         self.p = Particles(self, **kwargs)
         self.speed(self._speed)
         self.v = Vera(self, **kwargs)
-        self.llm = None # Ensure the attribute exists even if not enabled
-        # if kwargs.get('llm', False): # Check for the 'llm' flag in kwargs
-        #     print(f"[{self.name}] Initializing LLM module...")
-        #     try:
-        #         # Pass self (the Tolvera instance) and all kwargs
-        #         self.llm = LLM(self, **kwargs)
-        #     except Exception as e:
-        #         print(f"[{self.name}] WARNING: Failed to initialize LLM module: {e}")
-        #         self.llm = None # Set back to None on failure
+        self.llm = None
         if self.osc is not False:
             self.add_to_osc_map()
         if self.cv is not False:
