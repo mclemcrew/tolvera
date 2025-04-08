@@ -197,7 +197,7 @@ class Pixels:
             self.point(x[i], y[i], rgba)
 
     @ti.func
-    def rect(self, x: ti.i32, y: ti.i32, w: ti.i32, h: ti.i32, rgba: vec4, fill: bool = True):
+    def rect(self, x: ti.i32, y: ti.i32, w: ti.i32, h: ti.i32, rgba: vec4, fill: ti.i32 = 1):
         """Draw a rectangle.
 
         Args:
@@ -206,10 +206,10 @@ class Pixels:
             w (ti.i32): Width.
             h (ti.i32): Height.
             rgba (vec4): Colour.
-            fill (bool, optional): Whether to fill the rectangle. Defaults to True.
+            fill (ti.i32, optional): Whether to fill the rectangle. Defaults to 1 (True).
         """
         # TODO: gradients, lerp with ti.math.mix(x, y, a)
-        if fill:
+        if fill != 0:
             for i, j in ti.ndrange(w, h):
                 self.px.rgba[x + i, y + j] = rgba
         else:
@@ -371,7 +371,7 @@ class Pixels:
             self.line(points[i][0], points[i][1], points[i + 1][0], points[i + 1][1], rgba)
 
     @ti.func
-    def circle(self, x: ti.i32, y: ti.i32, r: ti.i32, rgba: vec4, fill: bool = True):
+    def circle(self, x: ti.i32, y: ti.i32, r: ti.i32, rgba: vec4, fill: ti.i32 = 1):
         """Draw a circle.
 
         Args:
@@ -379,9 +379,9 @@ class Pixels:
             y (ti.i32): Y position.
             r (ti.i32): Radius.
             rgba (vec4): Colour.
-            fill (bool, optional): Whether to fill the circle. Defaults to True.
+            fill (ti.i32, optional): Whether to fill the circle. Defaults to 1 (True).
         """
-        if fill:
+        if fill != 0:
             for i in range(r + 1):
                 d = ti.sqrt(r**2 - i**2)
                 d_int = ti.cast(d, ti.i32)
@@ -408,7 +408,7 @@ class Pixels:
 
 
     @ti.func
-    def circles(self, x: ti.template(), y: ti.template(), r: ti.template(), rgba: vec4, fill: bool = True):
+    def circles(self, x: ti.template(), y: ti.template(), r: ti.template(), rgba: vec4, fill: ti.i32 = 1):
         """Draw circles with the same colour.
 
         Args:
@@ -416,13 +416,13 @@ class Pixels:
             y (ti.template): Y positions.
             r (ti.template): Radii.
             rgba (vec4): Colour.
-            fill (bool, optional): Whether to fill the circles. Defaults to True.
+            fill (ti.i32, optional): Whether to fill the circles. Defaults to 1 (True).
         """
         for i in ti.static(range(len(x))):
             self.circle(x[i], y[i], r[i], rgba, fill)
 
     @ti.func
-    def triangle(self, a: vec2, b: vec2, c: vec2, rgba: vec4, fill: bool = True):
+    def triangle(self, a: vec2, b: vec2, c: vec2, rgba: vec4, fill: ti.i32 = 1):
         """Draw a triangle.
 
         Args:
@@ -430,14 +430,14 @@ class Pixels:
             b (vec2): Point B.
             c (vec2): Point C.
             rgba (vec4): Colour.
-            fill (bool, optional): Whether to fill the triangle. Defaults to True.
+            fill (ti.i32, optional): Whether to fill the triangle. Defaults to 1 (True).
         """
         x = ti.Vector([a[0], b[0], c[0]])
         y = ti.Vector([a[1], b[1], c[1]])
         self.polygon(x, y, rgba, fill)
 
     @ti.func
-    def polygon(self, x: ti.template(), y: ti.template(), rgba: vec4, fill: bool = True):
+    def polygon(self, x: ti.template(), y: ti.template(), rgba: vec4, fill: ti.i32 = 1):
         """Draw a polygon.
         
         Polygons are drawn according to the polygon mode, which can be "crossing" 
@@ -452,13 +452,13 @@ class Pixels:
             x (ti.template): X positions.
             y (ti.template): Y positions.
             rgba (vec4): Colour.
-            fill (bool, optional): Whether to fill the polygon. Defaults to True.
+            fill (ti.i32, optional): Whether to fill the polygon. Defaults to 1 (True).
         """
         x_min, x_max = ti.cast(x.min(), ti.i32), ti.cast(x.max(), ti.i32)
         y_min, y_max = ti.cast(y.min(), ti.i32), ti.cast(y.max(), ti.i32)
         l = len(x)
 
-        if fill: 
+        if fill != 0: 
             for i, j in ti.ndrange(x_max - x_min, y_max - y_min):
                 p = ti.Vector([x_min + i, y_min + j])
                 if self._is_inside(p, x, y, l) != 0:
