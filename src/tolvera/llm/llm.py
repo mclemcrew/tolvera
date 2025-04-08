@@ -27,10 +27,7 @@ from pathlib import Path
 import time
 from .definitions import SketchConfig
 
-# Define the prompts directory
 PROMPT_DIR = Path(__file__).parent / "prompts"
-
-# Set up logging
 logger = logging.getLogger("tv.llm")
 
 class LLM:
@@ -83,10 +80,8 @@ class LLM:
         flock_examples_text = self._load_prompt_examples("prompt_flock.txt")
         slime_examples_text = self._load_prompt_examples("prompt_slime.txt")
 
-        # Get required fields from schema
         required_list = self._get_required_fields_list()
 
-        # Assemble the Prompt with enhanced warnings
         prompt_header = textwrap.dedent(f"""
         You are an assistant that generates configuration JSON for the Tölvera library.
         Your ONLY task is to output a single, valid JSON object based on the user's request and the strict rules below.
@@ -171,7 +166,6 @@ class LLM:
         Now, process the user request below. Generate ONLY the raw JSON object conforming strictly to the rules and examples provided. Pay close attention to field names and use STRING names for the 'color' field.
         """)
 
-        # Concatenate all parts
         full_prompt = "\n\n".join([
             prompt_header.strip(),
             schema_overview.strip(),
@@ -188,7 +182,7 @@ class LLM:
             try: 
                 schema_info = SketchConfig.model_json_schema(ref_template="{model}")
             except AttributeError: 
-                schema_info = SketchConfig.schema()  # fallback for Pydantic v1
+                schema_info = SketchConfig.schema() 
                 
             required_fields = schema_info.get('required', [])
             required_fields = [f for f in required_fields if f not in ('flock_config', 'slime_config', 'species_configs')]
@@ -206,12 +200,10 @@ class LLM:
     def _correct_common_json_mistakes(self, json_str: str) -> str:
         """Attempt to fix common format errors in the LLM's JSON output."""
         try:
-            # Parse JSON to manipulate it programmatically 
             try:
                 data = json.loads(json_str)
             except json.JSONDecodeError:
-                # If it's invalid JSON, just return it unchanged
-                return json_str
+                return json_str  # If it's invalid JSON, just return it unchanged
             
             fixed_data = {}
             
@@ -222,13 +214,10 @@ class LLM:
             else:
                 fixed_data["sketch_name"] = data.get("sketch_name", "auto_generated_sketch")
                 
-            # Set sketch_type
             fixed_data["sketch_type"] = data.get("sketch_type", "flock")
             
-            # Handle particle_count and nested structures
             particle_count = None
             if "particle_count" in data:
-                # Check if it's a dict instead of an integer
                 if isinstance(data["particle_count"], dict) and "count" in data["particle_count"]:
                     particle_count = data["particle_count"]["count"]
                     logger.info(f"Auto-fixing: Extracted particle_count={particle_count} from nested object")
@@ -241,7 +230,6 @@ class LLM:
             # Set a default if we couldn't extract it
             fixed_data["particle_count"] = particle_count if particle_count is not None else 500
             
-            # Handle species information
             species_configs = self._extract_species_configs(data)
             species_count = len(species_configs) if species_configs else 1
             
@@ -271,11 +259,9 @@ class LLM:
         """Extract species configurations from various potential locations in data."""
         species_configs = []
         
-        # First check if species_configs is already correctly set
         if "species_configs" in data:
             return data["species_configs"]
             
-        # Check for nested species information
         nested_species = None
         if isinstance(data.get("particle_count"), dict) and "species" in data["particle_count"]:
             nested_species = data["particle_count"]["species"]
@@ -291,7 +277,7 @@ class LLM:
                 species_index = sp.get("id", i)
                 color = sp.get("color", "random")
                 
-                # Convert hex colors to names if needed
+                # Convert hex colors to names if needed (this is problem for some LLMs)
                 if isinstance(color, str) and color.startswith("#"):
                     color = self._convert_hex_to_color_name(color)
                 
@@ -311,7 +297,6 @@ class LLM:
 
     def _convert_hex_to_color_name(self, hex_color: str) -> str:
         """Convert hex color code to a color name."""
-        # Simple mapping for common colors
         color_map = {
             "#FF0000": "red", "#00FF00": "green", "#0000FF": "blue",
             "#FFFF00": "yellow", "#FFA500": "orange", "#800080": "purple",
@@ -333,10 +318,8 @@ class LLM:
         if not render_config:
             render_config = {}
             
-        # Find particle shape - check in nested species, top-level, or use default
         particle_shape = "circle"  # Default
         
-        # Check for shape in nested species
         nested_species = None
         if isinstance(data.get("particle_count"), dict) and "species" in data["particle_count"]:
             nested_species = data["particle_count"]["species"]
@@ -346,12 +329,11 @@ class LLM:
         if nested_species and len(nested_species) > 0 and "shape" in nested_species[0]:
             shape = nested_species[0].get("shape")
             if shape == "line":
-                particle_shape = "point"  # Map "line" to "point"
+                particle_shape = "point"  # Map "line" to "point" for fallback based on vera module
                 logger.info("Auto-fixing: Converted 'line' shape to 'point'")
             elif shape in ["point", "circle"]:
                 particle_shape = shape
         
-        # Also check for top-level particle_shape
         if "particle_shape" in data:
             shape = data["particle_shape"]
             if shape == "line":
@@ -361,7 +343,6 @@ class LLM:
                 particle_shape = shape
             logger.info("Auto-fixing: Moved 'particle_shape' to render_config")
         
-        # Ensure required fields in render_config
         render_config["particle_shape"] = render_config.get("particle_shape", particle_shape)
         if "background_behavior" not in render_config:
             render_config["background_behavior"] = "diffuse"
@@ -407,7 +388,7 @@ class LLM:
         validates the JSON structure, and returns the validated SketchConfig object.
         Includes debugging output for prompts sent to the LLM and auto-correction of JSON.
         """
-        # Construct User Message
+
         if current_config_json:
             mode = "Modifying"
             user_message_content = f"""
@@ -445,7 +426,7 @@ class LLM:
                 model=self.ollama_model,
                 messages=messages,
                 format='json',
-                options={'temperature': 0.1}  # Keep low temperature
+                options={'temperature': 0.1}  # Keep low temperature (we want predictable things)
             )
 
             # Response checking
@@ -472,18 +453,14 @@ class LLM:
             # Validate with Pydantic
             logger.info("Validating configuration structure using Pydantic...")
             try:
-                # Pydantic v2
                 validated_config = SketchConfig.model_validate_json(cleaned_json_string) 
             except AttributeError:
-                # Pydantic v1 fallback
                 validated_config = SketchConfig.parse_raw(cleaned_json_string) 
             logger.info("Pydantic validation successful!")
             return validated_config
 
         except json.JSONDecodeError as json_err:
-            # Handle failure to parse JSON
             logger.error(f"Failed to decode JSON from LLM: {json_err}")
-            # Determine which string version is available to print
             if 'json_output_string' in locals():
                 logger.debug(f"LLM Output was: {json_output_string}")
             return None
@@ -492,11 +469,9 @@ class LLM:
             logger.error("Pydantic Validation Error: The LLM's JSON does not conform to the SketchConfig structure.")
 
             try:
-                # Try to print detailed Pydantic errors (v2+)
                 error_details = json.dumps(e.errors(), indent=2)
                 logger.debug(f"Validation Errors: {error_details}")
             except Exception as inner_e:
-                # Fallback to basic error
                 logger.debug(f"Could not format detailed Pydantic errors ({type(inner_e).__name__}): {e}")
 
             # Try advanced auto-correction as last resort
@@ -532,7 +507,6 @@ class LLM:
         """Attempt advanced JSON fixing as a last resort."""
         logger.info("Attempting advanced auto-correction of JSON...")
         try:
-            # Parse as dict and manually reconstruct to match schema
             data = json.loads(json_str)
             
             # Add user input to help with color extraction
@@ -574,12 +548,11 @@ class LLM:
                     
             corrected["species_configs"] = species_configs
             
-            # Try with this heavily corrected JSON
             final_json = json.dumps(corrected, indent=2)
             logger.debug(f"Advanced corrected JSON: {final_json}")
             
             try:
-                # Try to validate with Pydantic one last time
+                # Try to validate with Pydantic one last time at the end of everything if we can
                 try: 
                     validated_config = SketchConfig.model_validate_json(final_json)  # v2
                 except AttributeError: 
