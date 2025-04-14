@@ -432,6 +432,7 @@ class Pixels:
         x_min, x_max = ti.cast(x.min(), ti.i32), ti.cast(x.max(), ti.i32)
         y_min, y_max = ti.cast(y.min(), ti.i32), ti.cast(y.max(), ti.i32)
         l = len(x)
+        ti.loop_config(serialize=True)
         for i, j in ti.ndrange(x_max - x_min, y_max - y_min):
             p = ti.Vector([x_min + i, y_min + j])
             if self._is_inside(p, x, y, l) != 0:
