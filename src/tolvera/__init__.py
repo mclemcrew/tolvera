@@ -1,3 +1,5 @@
+# Main tolvera/__init__.py
+
 from fire import Fire as run
 
 from .context import TolveraContext
@@ -7,7 +9,8 @@ from .pixels import *
 from .state import StateDict
 from .utils import *
 from .vera import Vera
-from .llm import LLM
+from .llm import TolveraSketchAgent
+
 from .tolvera_ import Tolvera
 from .rec import VideoRecorder
 from .dualsense import DualSense
