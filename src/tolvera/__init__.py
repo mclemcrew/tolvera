@@ -9,7 +9,7 @@ from .pixels import *
 from .state import StateDict
 from .utils import *
 from .vera import Vera
-from .llm import TolveraSketchAgent
+from .llm import SketchAgent
 
 from .tolvera_ import Tolvera
 from .rec import VideoRecorder

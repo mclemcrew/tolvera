@@ -1,88 +1,56 @@
-### This is a messy import with just a full dump and needs to be cleaned up!
-try:
-    from .models import (
-        MultiBehaviorSketchConfig,
-        BehaviorInstance,
-        BehaviorType,
-        FlockBehaviorConfig,
-        SlimeBehaviorConfig,
-        ParticleLifeConfig,
-        ColorPalette,
-        RenderConfig,
-        ParticleShape,
-        BackgroundBehavior,
-        SketchTemplates,
-        SketchGenerationResponse,
-        SketchModificationResponse
-    )
+"""
+Tölvera LLM Integration - Clean, modular implementation.
 
-    from .agent import (
-        TolveraSketchAgent,
-        generate_tolvera_sketch,
-        modify_tolvera_sketch
-    )
-except ImportError:
-    # I was getting errors so this is more of a problem as well
-    try:
-        from models import (
-            MultiBehaviorSketchConfig,
-            BehaviorInstance,
-            BehaviorType,
-            FlockBehaviorConfig,
-            SlimeBehaviorConfig,
-            ParticleLifeConfig,
-            ColorPalette,
-            RenderConfig,
-            ParticleShape,
-            BackgroundBehavior,
-            SketchTemplates,
-            SketchGenerationResponse,
-            SketchModificationResponse
-        )
+Main exports for easy importing with focus on slime + flock interactions.
+"""
 
-        from agent import (
-            TolveraSketchAgent,
-            generate_tolvera_sketch,
-            modify_tolvera_sketch
-        )
-    except ImportError as e:
-        print(f"Warning: Could not import tolvera.llm components: {e}")
-        # Define empty module for graceful degradation
-        class _MockClass: pass
-        MultiBehaviorSketchConfig = _MockClass
-        BehaviorInstance = _MockClass
-        BehaviorType = _MockClass
-        TolveraSketchAgent = _MockClass
+# Core agent functionality
+from .agent import (
+    SketchAgent
+)
 
-# Main exports
+# Models (unchanged - they're already clean)
+from .models import (
+    MultiBehaviorSketchConfig,
+    SketchGenerationResponse,
+    SketchModificationResponse,
+    SketchTemplates,
+    BehaviorInstance,
+    BehaviorType,
+    FlockBehaviorConfig,
+    SlimeBehaviorConfig,
+    ColorPalette,
+    RenderConfig
+)
+
+# Code generation
+from .code_generation import JinjaCodeGenerator, create_code_generator
+
+# Utilities
+from .utils import get_best_available_model, check_ollama_connection, OllamaModelManager
+
 __all__ = [
-    # Core models
+    # Core functionality
+    "SketchAgent",
+    
+    # Models
     "MultiBehaviorSketchConfig",
-    "BehaviorInstance", 
+    "SketchGenerationResponse",
+    "SketchModificationResponse", 
+    "SketchTemplates",
+    "BehaviorInstance",
     "BehaviorType",
     "FlockBehaviorConfig",
     "SlimeBehaviorConfig",
-    "ParticleLifeConfig",
     "ColorPalette",
     "RenderConfig",
-    "ParticleShape",
-    "BackgroundBehavior",
-    "SketchTemplates",
     
-    # Response models
-    "SketchGenerationResponse",
-    "SketchModificationResponse",
+    # Code generation
+    "JinjaCodeGenerator",
+    "create_code_generator",
     
-    # Agent classes and functions
-    "TolveraSketchAgent",
-    "generate_tolvera_sketch",
-    "modify_tolvera_sketch",
+    # Utils
+    "get_best_available_model",
+    "check_ollama_connection",
+    "OllamaModelManager"
 ]
-
-# Only export what actually exists
-__all__ = [name for name in __all__ if globals().get(name) is not None]
-
-# Version info
-__version__ = "0.1.0"
-__author__ = "Your Name"
-__description__ = "PydanticAI-powered multi-behavior Tölvera sketch generation"
