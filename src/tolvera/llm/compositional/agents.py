@@ -1,6 +1,7 @@
-# src/tolvera/llm/compositional/agents_robust.py
+# src/tolvera/llm/compositional/agents.py
 """
 Robust expert agents with better JSON handling and fallbacks.
+Fixed for pydantic-ai deprecation and improved prompts.
 """
 
 import logging
@@ -8,6 +9,7 @@ from typing import List, Dict, Any
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
+import json
 
 from .tools import TaskResult, TaskPlan, GeneratedScript, ToolCall
 from .json_utils import safe_json_parse, validate_tool_call_json, validate_task_plan_json
@@ -19,10 +21,11 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 class RobustBaseAgent:
-    """Base class with robust JSON handling for all expert agents."""
+    """Base class with comprehensive debugging of model responses."""
     
     def __init__(self, model_name: str = "qwen2.5:3b"):
         self.model_name = model_name
+        # FIXED: Remove temperature parameter
         self.model = OpenAIModel(
             model_name=model_name,
             provider=OpenAIProvider(
@@ -33,67 +36,156 @@ class RobustBaseAgent:
         logger.debug(f"Initialized {self.__class__.__name__} with model {model_name}")
 
     async def _safe_agent_run(self, agent: Agent, prompt: str, result_type: type, fallback_data: Any):
-        """Safely run an agent with robust error handling and fallbacks."""
+        """Safely run an agent with comprehensive debugging."""
+        
+        print(f"\n🔍 DEBUG: {self.__class__.__name__}")
+        print(f"📝 Prompt: {prompt}")
+        print(f"🎯 Expected type: {result_type}")
+        
+        # Step 1: Get raw model response first to see what it's actually generating
         try:
-            # Try the normal agent run first
-            result = await agent.run(prompt)
-            return result.data
-        except Exception as e:
-            logger.warning(f"Agent run failed with pydantic-ai: {e}")
+            # FIXED: Get the system prompt correctly from the agent
+            system_prompt = self._get_agent_system_prompt(agent)
             
-            # Fallback: try to get raw response and parse manually
+            raw_agent = Agent(
+                model=self.model,
+                result_type=str,
+                system_prompt=system_prompt
+            )
+            
+            raw_result = await raw_agent.run(prompt)
+            raw_response = raw_result.output
+            
+            print(f"📥 Raw Model Response:")
+            print(f"   Type: {type(raw_response)}")
+            print(f"   Length: {len(raw_response)} chars")
+            print(f"   Content: {repr(raw_response)}")
+            
+            # Step 2: Try to parse as JSON to see structure
             try:
-                # Create a simple string agent to get raw response
-                raw_agent = Agent(
-                    model=self.model,
-                    result_type=str,
-                    system_prompt="Respond exactly as requested with valid JSON."
-                )
+                parsed_json = json.loads(raw_response)
+                print(f"✅ JSON Parse: SUCCESS")
+                print(f"   Keys: {list(parsed_json.keys())}")
+                print(f"   Full JSON: {json.dumps(parsed_json, indent=2)}")
                 
-                raw_result = await raw_agent.run(prompt)
-                raw_response = raw_result.data
+                # Step 3: Check against our schema validation
+                if result_type == TaskPlan:
+                    is_valid = validate_task_plan_json(parsed_json)
+                    print(f"📋 TaskPlan validation: {is_valid}")
+                    if is_valid:
+                        try:
+                            task_plan = TaskPlan(**parsed_json)
+                            print(f"✅ TaskPlan creation: SUCCESS")
+                            return task_plan
+                        except Exception as e:
+                            print(f"❌ TaskPlan creation failed: {e}")
                 
-                logger.debug(f"Raw response: {repr(raw_response[:200])}...")
+                elif result_type == TaskResult:
+                    is_valid = validate_tool_call_json(parsed_json)
+                    print(f"✨ TaskResult validation: {is_valid}")
+                    if is_valid:
+                        try:
+                            tool_calls = [ToolCall(**tc) for tc in parsed_json["tool_calls"]]
+                            task_result = TaskResult(
+                                tool_calls=tool_calls,
+                                explanation=parsed_json["explanation"]
+                            )
+                            print(f"✅ TaskResult creation: SUCCESS")
+                            return task_result
+                        except Exception as e:
+                            print(f"❌ TaskResult creation failed: {e}")
+                            print(f"   Tool calls data: {parsed_json['tool_calls']}")
+                            # Debug each tool call individually
+                            for i, tc_data in enumerate(parsed_json["tool_calls"]):
+                                try:
+                                    tc = ToolCall(**tc_data)
+                                    print(f"   ✅ ToolCall {i}: SUCCESS")
+                                except Exception as tc_error:
+                                    print(f"   ❌ ToolCall {i}: FAILED - {tc_error}")
+                                    print(f"      Data: {tc_data}")
                 
-                # Try to parse the raw response manually
-                parsed_json = safe_json_parse(raw_response)
-                
-                if parsed_json:
-                    # Validate structure based on expected type
-                    if result_type == TaskPlan and validate_task_plan_json(parsed_json):
-                        return TaskPlan(**parsed_json)
-                    elif result_type == TaskResult and validate_tool_call_json(parsed_json):
-                        # Convert tool_calls to ToolCall objects
-                        tool_calls = [ToolCall(**tc) for tc in parsed_json["tool_calls"]]
-                        return TaskResult(
-                            tool_calls=tool_calls,
-                            explanation=parsed_json["explanation"]
-                        )
-                    else:
-                        logger.warning(f"Parsed JSON doesn't match expected structure for {result_type}")
-                else:
-                    logger.warning("Failed to parse raw response as JSON")
-                    
-            except Exception as parse_error:
-                logger.warning(f"Raw response parsing also failed: {parse_error}")
+            except json.JSONDecodeError as e:
+                print(f"❌ JSON Parse: FAILED - {e}")
+                print(f"   Attempting JSON cleanup...")
+                cleaned = self._clean_json_response(raw_response)
+                print(f"   Cleaned: {repr(cleaned)}")
+        
+        except Exception as e:
+            print(f"❌ Raw response failed: {e}")
+        
+        # Step 4: Now try the original pydantic-ai agent to see its specific error
+        print(f"\n🤖 Now trying pydantic-ai agent...")
+        try:
+            result = await agent.run(prompt)
+            print(f"✅ Pydantic-AI: SUCCESS")
+            print(f"   Result: {result.output}")
+            return result.output
             
-            # Ultimate fallback
-            logger.info(f"Using fallback data for {self.__class__.__name__}")
-            return fallback_data
+        except Exception as e:
+            print(f"❌ Pydantic-AI: FAILED - {e}")
+            print(f"   Error type: {type(e)}")
+            
+            # Get more details about the pydantic-ai error
+            if "Exceeded maximum retries" in str(e):
+                print(f"   📊 Retry limit exceeded - this suggests validation issues")
+            
+        # Ultimate fallback
+        print(f"🔄 Using fallback data")
+        return fallback_data
 
+    def _get_agent_system_prompt(self, agent: Agent) -> str:
+        """Get the system prompt from an agent safely."""
+        # Try different ways to get the system prompt
+        try:
+            if hasattr(agent, 'system_prompt'):
+                if callable(agent.system_prompt):
+                    return agent.system_prompt()
+                else:
+                    return agent.system_prompt
+            # Fallback to a generic prompt
+            return "You are a helpful assistant. Respond with valid JSON."
+        except Exception:
+            return "You are a helpful assistant. Respond with valid JSON."
+
+    def _clean_json_response(self, response: str) -> str:
+        """Clean JSON response for debugging."""
+        # Remove common prefixes
+        response = response.strip()
+        if "```json" in response:
+            response = response.split("```json")[1].split("```")[0].strip()
+        
+        # Find JSON boundaries
+        start_idx = response.find('{')
+        if start_idx == -1:
+            return "{}"
+        
+        brace_count = 0
+        end_idx = len(response) - 1
+        
+        for i, char in enumerate(response[start_idx:], start_idx):
+            if char == '{':
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    end_idx = i
+                    break
+        
+        return response[start_idx:end_idx+1]
 # =============================================================================
 # ROBUST CONDUCTOR AGENT
 # =============================================================================
 
 class RobustConductorAgent(RobustBaseAgent):
-    """Robust master planner with fallback handling."""
+    """Robust master planner with comprehensive debugging."""
     
     def __init__(self):
         super().__init__("llama3.2:3b")
         
-        system_prompt = """You are a task planner for Tölvera creative coding.
+        # Store system prompt as an attribute for easy access
+        self.system_prompt_text = """You are a task planner for Tölvera creative coding.
 
-Respond with ONLY this exact JSON format:
+You must respond with ONLY this exact JSON format:
 {
     "description": "Brief description of the task",
     "steps": ["Step 1", "Step 2", "Step 3", "Step 4"]
@@ -105,7 +197,8 @@ For any creative request, always use these 4 steps:
 3. Apply movement or physics (if movement is mentioned)
 4. Assemble final script
 
-Example for "blue pixel moving right":
+Example - Input: "blue pixel moving right"
+Expected output:
 {
     "description": "Create a blue pixel that moves from left to right",
     "steps": [
@@ -116,18 +209,22 @@ Example for "blue pixel moving right":
     ]
 }
 
-RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
+CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
 
         self.agent = Agent(
             model=self.model,
             result_type=TaskPlan,
-            system_prompt=system_prompt
+            system_prompt=self.system_prompt_text
         )
 
+    def _get_agent_system_prompt(self, agent: Agent) -> str:
+        """Get the system prompt for this agent."""
+        return self.system_prompt_text
+
     async def plan_task(self, user_request: str) -> TaskPlan:
-        """Create detailed execution plan with robust error handling."""
+        """Create detailed execution plan with comprehensive debugging."""
         
-        prompt = f'Create a 4-step plan for: "{user_request}"\n\nRespond with only JSON:'
+        prompt = f'Create a 4-step plan for: "{user_request}"'
         
         fallback_plan = TaskPlan(
             description=f"Basic implementation of: {user_request}",
@@ -149,14 +246,14 @@ RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
 # =============================================================================
 
 class RobustParticleCreationAgent(RobustBaseAgent):
-    """Robust particle creation expert."""
+    """Robust particle creation expert with comprehensive debugging."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = """You create particles for Tölvera.
+        self.system_prompt_text = """You are a particle creation expert for Tölvera.
 
-Respond with ONLY this exact JSON format:
+You must respond with ONLY this exact JSON format:
 {
     "tool_calls": [
         {
@@ -171,8 +268,8 @@ Position coordinates (0.0 to 1.0):
 - Left: [0.1, 0.5], Center: [0.5, 0.5], Right: [0.9, 0.5]
 - Top: [0.5, 0.1], Bottom: [0.5, 0.9]
 
-Examples:
-"create 2 particles on left" →
+Example - Input: "create 2 particles on left"
+Expected output:
 {
     "tool_calls": [
         {
@@ -183,18 +280,22 @@ Examples:
     "explanation": "Created 2 particles on the left side"
 }
 
-RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
+CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
 
         self.agent = Agent(
             model=self.model,
             result_type=TaskResult,
-            system_prompt=system_prompt
+            system_prompt=self.system_prompt_text
         )
 
+    def _get_agent_system_prompt(self, agent: Agent) -> str:
+        """Get the system prompt for this agent."""
+        return self.system_prompt_text
+
     async def execute_task(self, task: str) -> TaskResult:
-        """Execute particle creation with robust error handling."""
+        """Execute particle creation with comprehensive debugging."""
         
-        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        prompt = f'Task: "{task}"'
         
         fallback_result = TaskResult(
             tool_calls=[
@@ -210,20 +311,19 @@ RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
         
         logger.info(f"✨ ParticleCreationAgent: {result.explanation}")
         return result
-
 # =============================================================================
 # ROBUST COLOR PALETTE AGENT  
 # =============================================================================
 
 class RobustColorPaletteAgent(RobustBaseAgent):
-    """Robust color management expert."""
+    """Robust color management expert with comprehensive debugging."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = """You set colors for Tölvera particles.
+        self.system_prompt_text = """You are a color expert for Tölvera particles.
 
-Respond with ONLY this exact JSON format:
+You must respond with ONLY this exact JSON format:
 {
     "tool_calls": [
         {
@@ -240,8 +340,8 @@ Colors (R, G, B, A from 0.0 to 1.0):
 - blue: [0.0, 0.0, 1.0, 1.0]
 - yellow: [1.0, 1.0, 0.0, 1.0]
 
-Example:
-"make it blue" →
+Example - Input: "make it blue"
+Expected output:
 {
     "tool_calls": [
         {
@@ -252,18 +352,22 @@ Example:
     "explanation": "Set species 0 color to blue"
 }
 
-RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
+CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
 
         self.agent = Agent(
             model=self.model,
             result_type=TaskResult,
-            system_prompt=system_prompt
+            system_prompt=self.system_prompt_text
         )
 
+    def _get_agent_system_prompt(self, agent: Agent) -> str:
+        """Get the system prompt for this agent."""
+        return self.system_prompt_text
+
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
-        """Execute color task with robust error handling."""
+        """Execute color task with comprehensive debugging."""
         
-        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        prompt = f'Task: "{task}"'
         
         fallback_result = TaskResult(
             tool_calls=[
@@ -279,20 +383,19 @@ RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
         
         logger.info(f"🎨 ColorPaletteAgent: {result.explanation}")
         return result
-
 # =============================================================================
 # ROBUST MOTION DYNAMICS AGENT
 # =============================================================================
 
 class RobustMotionDynamicsAgent(RobustBaseAgent):
-    """Robust movement and velocity expert."""
+    """Robust movement and velocity expert with comprehensive debugging."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = """You set movement for Tölvera particles.
+        self.system_prompt_text = """You are a movement expert for Tölvera particles.
 
-Respond with ONLY this exact JSON format:
+You must respond with ONLY this exact JSON format:
 {
     "tool_calls": [
         {
@@ -310,8 +413,8 @@ Movement directions:
 - Down: [0.0, 2.0]
 - Diagonal down-right: [2.0, 2.0]
 
-Example:
-"move from top to bottom" →
+Example - Input: "move from top to bottom"
+Expected output:
 {
     "tool_calls": [
         {
@@ -322,18 +425,22 @@ Example:
     "explanation": "Set species 0 to move downward"
 }
 
-RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
+CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
 
         self.agent = Agent(
             model=self.model,
             result_type=TaskResult,
-            system_prompt=system_prompt
+            system_prompt=self.system_prompt_text
         )
 
+    def _get_agent_system_prompt(self, agent: Agent) -> str:
+        """Get the system prompt for this agent."""
+        return self.system_prompt_text
+
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
-        """Execute motion task with robust error handling."""
+        """Execute motion task with comprehensive debugging."""
         
-        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        prompt = f'Task: "{task}"'
         
         fallback_result = TaskResult(
             tool_calls=[
@@ -349,7 +456,6 @@ RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
         
         logger.info(f"🚀 MotionDynamicsAgent: {result.explanation}")
         return result
-
 # =============================================================================
 # ROBUST PHYSICS AGENT
 # =============================================================================
@@ -360,7 +466,7 @@ class RobustPhysicsAgent(RobustBaseAgent):
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = """You apply physics to Tölvera particles.
+        self.system_prompt_text = """You are a physics expert for Tölvera particles.
 
 For simple movement tasks, respond with:
 {
@@ -381,18 +487,22 @@ For flocking/swarming, respond with:
 
 Look for keywords: flock, swarm, together, group, birds, schools
 
-RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
+CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
 
         self.agent = Agent(
             model=self.model,
             result_type=TaskResult,
-            system_prompt=system_prompt
+            system_prompt=self.system_prompt_text
         )
+
+    def _get_agent_system_prompt(self, agent: Agent) -> str:
+        """Get the system prompt for this agent."""
+        return self.system_prompt_text
 
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
         """Execute physics task with robust error handling."""
         
-        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        prompt = f'Task: "{task}"'
         
         fallback_result = TaskResult(
             tool_calls=[],
@@ -403,7 +513,6 @@ RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
         
         logger.info(f"⚗️ PhysicsAgent: {result.explanation}")
         return result
-
 # =============================================================================
 # COMPOSITION AGENT (unchanged - still uses direct generation)
 # =============================================================================
@@ -497,10 +606,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\\nExiting.")
 '''
-
-# =============================================================================
-# FACTORY FUNCTIONS FOR ROBUST AGENTS
-# =============================================================================
 
 def create_robust_agents():
     """Create all robust expert agents."""

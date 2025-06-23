@@ -140,37 +140,57 @@ def fix_quotes(json_str: str) -> str:
 
 def safe_json_parse(json_str: str, expected_type: type = dict) -> Optional[Dict[str, Any]]:
     """
-    Safely parse JSON string with error handling.
-    
-    Args:
-        json_str: JSON string to parse
-        expected_type: Expected type of the parsed result
-        
-    Returns:
-        Parsed JSON object or None if parsing fails
+    Safely parse JSON string with error handling and aggressive cleaning.
     """
+    if not json_str or not json_str.strip():
+        logger.warning("Empty JSON string")
+        return None
+        
     try:
-        # First, clean the response
+        # First, clean the response more aggressively
         cleaned = clean_json_response(json_str)
         logger.debug(f"Cleaned JSON: {cleaned}")
         
-        # Try to parse
-        parsed = json.loads(cleaned)
+        # Try multiple parsing strategies
+        strategies = [
+            lambda s: json.loads(s),  # Direct parse
+            lambda s: json.loads(s.strip('"')),  # Remove outer quotes
+            lambda s: json.loads(s.replace("'", '"')),  # Fix quotes
+            lambda s: json.loads(s.replace('\n', '').replace('\t', '')),  # Remove whitespace
+        ]
+        
+        parsed = None
+        for i, strategy in enumerate(strategies):
+            try:
+                parsed = strategy(cleaned)
+                if i > 0:
+                    logger.info(f"JSON parsed successfully with strategy {i}")
+                break
+            except json.JSONDecodeError:
+                continue
+        
+        if parsed is None:
+            logger.error("All parsing strategies failed")
+            return None
         
         # Validate type
         if not isinstance(parsed, expected_type):
             logger.warning(f"Parsed JSON is {type(parsed)}, expected {expected_type}")
-            return None
+            # Try to convert if possible
+            if expected_type == dict and isinstance(parsed, str):
+                # Maybe it's a string containing JSON
+                try:
+                    parsed = json.loads(parsed)
+                except:
+                    return None
         
         return parsed
         
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error: {e}")
-        logger.error(f"Attempted to parse: {repr(json_str[:200])}...")
-        return None
     except Exception as e:
         logger.error(f"Unexpected error parsing JSON: {e}")
+        logger.error(f"Input was: {repr(json_str[:200])}...")
         return None
+
 
 def extract_json_from_text(text: str) -> Optional[str]:
     """
@@ -198,59 +218,15 @@ def extract_json_from_text(text: str) -> Optional[str]:
     
     return None
 
-def validate_tool_call_json(json_obj: Dict[str, Any]) -> bool:
-    """
-    Validate that a JSON object has the expected structure for tool calls.
-    
-    Args:
-        json_obj: Parsed JSON object
-        
-    Returns:
-        True if valid tool call structure
-    """
-    required_keys = {"tool_calls", "explanation"}
-    
-    if not isinstance(json_obj, dict):
-        return False
-    
-    if not all(key in json_obj for key in required_keys):
-        logger.warning(f"Missing required keys. Expected {required_keys}, got {json_obj.keys()}")
-        return False
-    
-    if not isinstance(json_obj["tool_calls"], list):
-        logger.warning(f"tool_calls should be list, got {type(json_obj['tool_calls'])}")
-        return False
-    
-    if not isinstance(json_obj["explanation"], str):
-        logger.warning(f"explanation should be string, got {type(json_obj['explanation'])}")
-        return False
-    
-    # Validate each tool call
-    for i, tool_call in enumerate(json_obj["tool_calls"]):
-        if not isinstance(tool_call, dict):
-            logger.warning(f"tool_call {i} should be dict, got {type(tool_call)}")
-            return False
-        
-        if "tool_name" not in tool_call or "parameters" not in tool_call:
-            logger.warning(f"tool_call {i} missing required keys")
-            return False
-    
-    return True
-
 def validate_task_plan_json(json_obj: Dict[str, Any]) -> bool:
     """
     Validate that a JSON object has the expected structure for task plans.
-    
-    Args:
-        json_obj: Parsed JSON object
-        
-    Returns:
-        True if valid task plan structure
+    More flexible validation that handles common model variations.
     """
-    required_keys = {"description", "steps"}
-    
     if not isinstance(json_obj, dict):
         return False
+    
+    required_keys = {"description", "steps"}
     
     if not all(key in json_obj for key in required_keys):
         logger.warning(f"Missing required keys. Expected {required_keys}, got {json_obj.keys()}")
@@ -264,13 +240,77 @@ def validate_task_plan_json(json_obj: Dict[str, Any]) -> bool:
         logger.warning(f"steps should be list, got {type(json_obj['steps'])}")
         return False
     
-    # Validate each step is a string
+    # More flexible step validation - convert objects to strings if needed
+    cleaned_steps = []
     for i, step in enumerate(json_obj["steps"]):
-        if not isinstance(step, str):
-            logger.warning(f"step {i} should be string, got {type(step)}")
-            return False
+        if isinstance(step, str):
+            cleaned_steps.append(step)
+        elif isinstance(step, dict):
+            # Convert dict to string (common model error)
+            if "step" in step:
+                cleaned_steps.append(step["step"])
+            elif "description" in step:
+                cleaned_steps.append(step["description"])
+            else:
+                # Use the whole dict as string representation
+                cleaned_steps.append(str(step))
+            logger.info(f"Converted step {i} from dict to string")
+        else:
+            # Convert other types to string
+            cleaned_steps.append(str(step))
+            logger.warning(f"Converted step {i} from {type(step)} to string")
+    
+    # Update the original json_obj with cleaned steps
+    json_obj["steps"] = cleaned_steps
     
     return True
+
+def validate_tool_call_json(json_obj: Dict[str, Any]) -> bool:
+    """
+    Validate that a JSON object has the expected structure for tool calls.
+    More flexible validation that handles common model variations.
+    """
+    if not isinstance(json_obj, dict):
+        return False
+    
+    required_keys = {"tool_calls", "explanation"}
+    
+    if not all(key in json_obj for key in required_keys):
+        logger.warning(f"Missing required keys. Expected {required_keys}, got {json_obj.keys()}")
+        return False
+    
+    if not isinstance(json_obj["tool_calls"], list):
+        logger.warning(f"tool_calls should be list, got {type(json_obj['tool_calls'])}")
+        return False
+    
+    if not isinstance(json_obj["explanation"], str):
+        logger.warning(f"explanation should be string, got {type(json_obj['explanation'])}")
+        return False
+    
+    # Validate and clean each tool call
+    cleaned_tool_calls = []
+    for i, tool_call in enumerate(json_obj["tool_calls"]):
+        if not isinstance(tool_call, dict):
+            logger.warning(f"tool_call {i} should be dict, got {type(tool_call)}")
+            continue
+        
+        # Ensure required keys exist
+        if "tool_name" not in tool_call:
+            logger.warning(f"tool_call {i} missing tool_name")
+            continue
+            
+        if "parameters" not in tool_call:
+            # Add empty parameters if missing
+            tool_call["parameters"] = {}
+            logger.info(f"Added empty parameters to tool_call {i}")
+        
+        cleaned_tool_calls.append(tool_call)
+    
+    # Update with cleaned tool calls
+    json_obj["tool_calls"] = cleaned_tool_calls
+    
+    return len(cleaned_tool_calls) > 0 or len(json_obj["tool_calls"]) == 0  # Allow empty tool_calls
+
 
 # Testing function
 def test_json_utils():

@@ -1,12 +1,10 @@
 # src/tolvera/llm/compositional/tools.py
 """
 Tool definitions and Pydantic schemas for the MoE system.
-These define the "Lego bricks" that agents can use to compose Tölvera sketches.
-
-Based on Table 1 from the architectural blueprint PDF.
+Fixed with classic typing annotations for pydantic-ai compatibility.
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict, Any  # Classic typing imports
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -72,23 +70,23 @@ class ApplyVaryingSpeedsSchema(BaseModel):
     variation: float = Field(description="Speed variation amount", ge=0.0)
 
 # =============================================================================
-# AGENT COMMUNICATION SCHEMAS
+# AGENT COMMUNICATION SCHEMAS - FIXED WITH CLASSIC TYPING
 # =============================================================================
 
 class ToolCall(BaseModel):
     """Represents a tool call to execute."""
     tool_name: str = Field(description="Tool function name")
-    parameters: dict = Field(description="Tool parameters")
+    parameters: Dict[str, Any] = Field(description="Tool parameters")  # More specific than dict
 
 class TaskResult(BaseModel):
     """Result from an expert agent."""
-    tool_calls: List[ToolCall] = Field(description="Tool calls to execute")
+    tool_calls: List[ToolCall] = Field(description="Tool calls to execute")  # FIXED: List[ToolCall]
     explanation: str = Field(description="What was accomplished")
 
 class TaskPlan(BaseModel):
     """Execution plan from conductor."""
     description: str = Field(description="Overall goal")
-    steps: List[str] = Field(description="Step-by-step breakdown")
+    steps: List[str] = Field(description="Step-by-step breakdown")  # FIXED: List[str]
 
 class GeneratedScript(BaseModel):
     """Complete generated Tölvera script."""

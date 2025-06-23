@@ -1,6 +1,6 @@
-# src/tolvera/llm/compositional/orchestrator_robust.py
+# src/tolvera/llm/compositional/orchestrator.py
 """
-Robust orchestrator that coordinates the MoE system with better error handling.
+Fixed orchestrator with proper agent routing and better error handling.
 """
 
 import logging
@@ -13,13 +13,9 @@ from .tools import GeneratedScript, ToolCall
 
 logger = logging.getLogger(__name__)
 
-# =============================================================================
-# ROBUST ORCHESTRATOR
-# =============================================================================
-
 class RobustCodeGenerationOrchestrator:
     """
-    Robust orchestrator with better error handling and fallbacks.
+    Fixed orchestrator with proper agent routing and enhanced error handling.
     """
     
     def __init__(self):
@@ -40,7 +36,7 @@ class RobustCodeGenerationOrchestrator:
             raise
 
     async def generate_script(self, user_request: str) -> GeneratedScript:
-        """Generate a complete Tölvera script with robust error handling."""
+        """Generate a complete Tölvera script with proper agent routing."""
         
         try:
             logger.info(f"🎯 Processing request: {user_request}")
@@ -50,7 +46,7 @@ class RobustCodeGenerationOrchestrator:
             plan = await self.conductor.plan_task(user_request)
             logger.info(f"📋 Plan created: {plan.description}")
             
-            # Step 2: Execute plan through expert agents
+            # Step 2: Execute plan through expert agents WITH PROPER ROUTING
             logger.info("⚡ Step 2: Executing plan through expert agents...")
             all_tool_calls = []
             context = {}
@@ -58,31 +54,37 @@ class RobustCodeGenerationOrchestrator:
             for i, step in enumerate(plan.steps):
                 logger.info(f"⚡ Step {i+1}/{len(plan.steps)}: {step}")
                 
-                # Route to appropriate expert based on step content
+                # FIXED: Route to appropriate expert based on step content
                 try:
-                    if self._is_particle_task(step):
+                    # Determine the correct agent for this step
+                    agent_type = self._determine_agent_type(step)
+                    
+                    if agent_type == "particle":
                         result = await self.particle_agent.execute_task(step)
                         all_tool_calls.extend(result.tool_calls)
                         self._update_context_from_tool_calls(context, result.tool_calls)
                     
-                    elif self._is_color_task(step):
+                    elif agent_type == "color":
                         result = await self.color_agent.execute_task(step, context)
                         all_tool_calls.extend(result.tool_calls)
                     
-                    elif self._is_motion_task(step):
+                    elif agent_type == "motion":
                         result = await self.motion_agent.execute_task(step, context)
                         all_tool_calls.extend(result.tool_calls)
                     
-                    elif self._is_physics_task(step):
+                    elif agent_type == "physics":
                         result = await self.physics_agent.execute_task(step, context)
                         all_tool_calls.extend(result.tool_calls)
                     
-                    elif self._is_composition_task(step):
+                    elif agent_type == "composition":
                         logger.info("📝 Composition step noted, will handle at end")
                         continue
                     
                     else:
-                        logger.warning(f"❓ Unrecognized step type: {step}")
+                        logger.warning(f"❓ Unrecognized step type for: {step}")
+                        # Try particle agent as fallback
+                        result = await self.particle_agent.execute_task(step)
+                        all_tool_calls.extend(result.tool_calls)
                 
                 except Exception as e:
                     logger.warning(f"⚠️ Step {i+1} failed: {e}, continuing with fallbacks")
@@ -114,6 +116,71 @@ class RobustCodeGenerationOrchestrator:
             logger.warning("⚠️ Returning ultimate fallback script")
             return fallback_script
 
+    def _determine_agent_type(self, step: str) -> str:
+        """
+        FIXED: Properly determine which agent should handle each step.
+        This is the key fix for routing issues.
+        """
+        step_lower = step.lower()
+        
+        # Particle creation keywords (highest priority)
+        particle_keywords = [
+            "create", "spawn", "generate", "add", "make particles", "make particle",
+            "positioned", "position", "place", "put particles"
+        ]
+        
+        # Color keywords 
+        color_keywords = [
+            "color", "colour", "blue", "red", "green", "yellow", "white", "black",
+            "cyan", "magenta", "orange", "purple", "pink", "set color", "apply color",
+            "paint", "tint", "hue"
+        ]
+        
+        # Motion keywords
+        motion_keywords = [
+            "move", "velocity", "speed", "motion", "direction", "apply velocity",
+            "set velocity", "right", "left", "up", "down", "horizontal", "vertical",
+            "acceleration", "deceleration"
+        ]
+        
+        # Physics keywords
+        physics_keywords = [
+            "flock", "flocking", "physics", "gravity", "force", "attract", "repel", 
+            "behavior", "behaviour", "emergent", "swarm", "birds", "cohesion", 
+            "separation", "alignment", "bounce", "bouncing", "elasticity"
+        ]
+        
+        # Composition keywords
+        composition_keywords = [
+            "assemble", "compose", "script", "final", "combine", "generate script",
+            "visualization", "complete"
+        ]
+        
+        # Check in order of specificity
+        # 1. Check for composition first (most specific)
+        if any(keyword in step_lower for keyword in composition_keywords):
+            return "composition"
+        
+        # 2. Check for physics (specific behaviors)
+        if any(keyword in step_lower for keyword in physics_keywords):
+            return "physics"
+        
+        # 3. Check for motion (before color, as motion words are more specific)
+        if any(keyword in step_lower for keyword in motion_keywords):
+            return "motion"
+        
+        # 4. Check for color (before particle, as color is more specific)
+        if any(keyword in step_lower for keyword in color_keywords):
+            return "color"
+        
+        # 5. Check for particle creation (most general)
+        if any(keyword in step_lower for keyword in particle_keywords):
+            return "particle"
+        
+        # Default to particle if unclear
+        logger.warning(f"⚠️ Could not determine agent type for step: {step}")
+        return "particle"
+
     def _generate_fallback_tool_calls(self, user_request: str) -> List[ToolCall]:
         """Generate basic tool calls based on keywords in the request."""
         logger.info("🔧 Generating fallback tool calls from request analysis")
@@ -123,14 +190,19 @@ class RobustCodeGenerationOrchestrator:
         
         # Extract number of particles
         n_particles = 1
-        if "two" in request_lower or "2" in request_lower:
-            n_particles = 2
-        elif "three" in request_lower or "3" in request_lower:
-            n_particles = 3
-        elif "five" in request_lower or "5" in request_lower:
-            n_particles = 5
+        numbers = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
+        for i, word in enumerate(numbers):
+            if word in request_lower:
+                n_particles = i + 1
+                break
         
-        # Determine position
+        # Check for explicit numbers
+        import re
+        numbers_found = re.findall(r'\b(\d+)\b', request_lower)
+        if numbers_found:
+            n_particles = max(n_particles, int(numbers_found[0]))
+        
+        # Determine position - use proper normalized coordinates
         position = None
         if "left" in request_lower:
             position = [0.1, 0.5]
@@ -140,8 +212,9 @@ class RobustCodeGenerationOrchestrator:
             position = [0.5, 0.1]
         elif "bottom" in request_lower:
             position = [0.5, 0.9]
-        elif "center" in request_lower:
+        elif "center" in request_lower or "centre" in request_lower:
             position = [0.5, 0.5]
+        # Default to None for random positioning
         
         # Create particles
         tool_calls.append(ToolCall(
@@ -165,22 +238,36 @@ class RobustCodeGenerationOrchestrator:
                 tool_name="set_species_color",
                 parameters={"species_id": 0, "color": [0.0, 1.0, 0.0, 1.0]}
             ))
+        elif "yellow" in request_lower:
+            tool_calls.append(ToolCall(
+                tool_name="set_species_color",
+                parameters={"species_id": 0, "color": [1.0, 1.0, 0.0, 1.0]}
+            ))
         
-        # Handle movement
+        # Handle movement - use simple literal values only
         velocity = None
-        if "right" in request_lower and "move" in request_lower:
+        if "right" in request_lower and ("move" in request_lower or "moving" in request_lower):
             velocity = [2.0, 0.0]
-        elif "left" in request_lower and "move" in request_lower:
+        elif "left" in request_lower and ("move" in request_lower or "moving" in request_lower):
             velocity = [-2.0, 0.0]
-        elif "up" in request_lower or ("top" in request_lower and "bottom" in request_lower):
+        elif ("up" in request_lower or "upward" in request_lower) and ("move" in request_lower or "moving" in request_lower):
             velocity = [0.0, -2.0]
-        elif "down" in request_lower or ("bottom" in request_lower and "top" in request_lower):
+        elif ("down" in request_lower or "downward" in request_lower) and ("move" in request_lower or "moving" in request_lower):
             velocity = [0.0, 2.0]
+        elif "top" in request_lower and "bottom" in request_lower:
+            velocity = [0.0, 2.0]  # Top to bottom
         
         if velocity:
             tool_calls.append(ToolCall(
                 tool_name="set_species_velocity",
                 parameters={"species_id": 0, "velocity": velocity}
+            ))
+        
+        # Handle flocking
+        if any(word in request_lower for word in ["flock", "swarm", "birds", "together"]):
+            tool_calls.append(ToolCall(
+                tool_name="apply_flock_behavior",
+                parameters={"species_id": 0, "cohesion": 0.7, "separation": 0.3, "alignment": 0.5}
             ))
         
         logger.info(f"🔧 Generated {len(tool_calls)} fallback tool calls")
@@ -193,31 +280,6 @@ class RobustCodeGenerationOrchestrator:
                 context["particles_created"] = call.parameters.get("n", 1)
                 context["species_id"] = call.parameters.get("species_id", 0)
                 context["num_species"] = max(context.get("num_species", 1), context["species_id"] + 1)
-
-    def _is_particle_task(self, step: str) -> bool:
-        """Check if step involves particle creation."""
-        keywords = ["create", "particle", "pixel", "spawn", "generate", "position", "place"]
-        return any(word in step.lower() for word in keywords)
-
-    def _is_color_task(self, step: str) -> bool:
-        """Check if step involves color operations."""
-        keywords = ["color", "blue", "red", "green", "yellow", "paint", "tint", "hue", "shade"]
-        return any(word in step.lower() for word in keywords)
-
-    def _is_motion_task(self, step: str) -> bool:
-        """Check if step involves movement."""
-        keywords = ["move", "velocity", "motion", "right", "left", "up", "down", "speed", "direction"]
-        return any(word in step.lower() for word in keywords)
-
-    def _is_physics_task(self, step: str) -> bool:
-        """Check if step involves complex physics."""
-        keywords = ["flock", "physics", "gravity", "force", "attract", "repel", "behavior", "emergent"]
-        return any(word in step.lower() for word in keywords)
-
-    def _is_composition_task(self, step: str) -> bool:
-        """Check if step involves final script assembly."""
-        keywords = ["assemble", "compose", "script", "final", "combine", "generate", "code"]
-        return any(word in step.lower() for word in keywords)
 
     def _generate_ultimate_fallback(self, user_request: str) -> str:
         """Generate the ultimate fallback script when everything fails."""
@@ -260,8 +322,16 @@ def main(**kwargs):
                 if tv.p.field[i].pos[0] < 0:
                     tv.p.field[i].pos[0] = tv.x
     
-    # Set basic color
-    tv.s.species.field[0].rgba = [0.2, 0.4, 1.0, 1.0]
+    # Set basic color based on request
+    color = [0.2, 0.4, 1.0, 1.0]  # Default blue
+    if "red" in "{user_request}".lower():
+        color = [1.0, 0.2, 0.2, 1.0]
+    elif "green" in "{user_request}".lower():
+        color = [0.2, 1.0, 0.2, 1.0]
+    elif "yellow" in "{user_request}".lower():
+        color = [1.0, 1.0, 0.2, 1.0]
+    
+    tv.s.species.field[0].rgba = color
     
     # Initialize
     init_particles()
@@ -335,10 +405,6 @@ if __name__ == '__main__':
                 "status": "ready"
             }
         }
-
-# =============================================================================
-# FACTORY FUNCTION
-# =============================================================================
 
 def create_robust_orchestrator() -> RobustCodeGenerationOrchestrator:
     """Create the robust orchestrator."""
