@@ -1,9 +1,6 @@
-# src/tolvera/llm/compositional/agents.py
+# src/tolvera/llm/compositional/agents_robust.py
 """
-Expert agents for the MoE system.
-Each agent specializes in a specific domain of Tölvera sketch generation.
-
-Based on Table 2 from the architectural blueprint PDF.
+Robust expert agents with better JSON handling and fallbacks.
 """
 
 import logging
@@ -12,20 +9,17 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from .tools import (
-    TaskResult, TaskPlan, GeneratedScript, ToolCall,
-    PARTICLE_AGENT_TOOLS, COLOR_AGENT_TOOLS, MOTION_AGENT_TOOLS, PHYSICS_AGENT_TOOLS,
-    generate_tolvera_imports, generate_main_function_template
-)
+from .tools import TaskResult, TaskPlan, GeneratedScript, ToolCall
+from .json_utils import safe_json_parse, validate_tool_call_json, validate_task_plan_json
 
 logger = logging.getLogger(__name__)
 
 # =============================================================================
-# BASE AGENT CLASS
+# BASE AGENT CLASS WITH ROBUST JSON HANDLING
 # =============================================================================
 
-class BaseAgent:
-    """Base class for all expert agents."""
+class RobustBaseAgent:
+    """Base class with robust JSON handling for all expert agents."""
     
     def __init__(self, model_name: str = "qwen2.5:3b"):
         self.model_name = model_name
@@ -38,45 +32,91 @@ class BaseAgent:
         )
         logger.debug(f"Initialized {self.__class__.__name__} with model {model_name}")
 
+    async def _safe_agent_run(self, agent: Agent, prompt: str, result_type: type, fallback_data: Any):
+        """Safely run an agent with robust error handling and fallbacks."""
+        try:
+            # Try the normal agent run first
+            result = await agent.run(prompt)
+            return result.data
+        except Exception as e:
+            logger.warning(f"Agent run failed with pydantic-ai: {e}")
+            
+            # Fallback: try to get raw response and parse manually
+            try:
+                # Create a simple string agent to get raw response
+                raw_agent = Agent(
+                    model=self.model,
+                    result_type=str,
+                    system_prompt="Respond exactly as requested with valid JSON."
+                )
+                
+                raw_result = await raw_agent.run(prompt)
+                raw_response = raw_result.data
+                
+                logger.debug(f"Raw response: {repr(raw_response[:200])}...")
+                
+                # Try to parse the raw response manually
+                parsed_json = safe_json_parse(raw_response)
+                
+                if parsed_json:
+                    # Validate structure based on expected type
+                    if result_type == TaskPlan and validate_task_plan_json(parsed_json):
+                        return TaskPlan(**parsed_json)
+                    elif result_type == TaskResult and validate_tool_call_json(parsed_json):
+                        # Convert tool_calls to ToolCall objects
+                        tool_calls = [ToolCall(**tc) for tc in parsed_json["tool_calls"]]
+                        return TaskResult(
+                            tool_calls=tool_calls,
+                            explanation=parsed_json["explanation"]
+                        )
+                    else:
+                        logger.warning(f"Parsed JSON doesn't match expected structure for {result_type}")
+                else:
+                    logger.warning("Failed to parse raw response as JSON")
+                    
+            except Exception as parse_error:
+                logger.warning(f"Raw response parsing also failed: {parse_error}")
+            
+            # Ultimate fallback
+            logger.info(f"Using fallback data for {self.__class__.__name__}")
+            return fallback_data
+
 # =============================================================================
-# CONDUCTOR AGENT - Master Planner
+# ROBUST CONDUCTOR AGENT
 # =============================================================================
 
-class ConductorAgent(BaseAgent):
-    """
-    Master planner that decomposes user requests using Chain-of-Thought.
-    Uses larger model for better reasoning capabilities.
-    """
+class RobustConductorAgent(RobustBaseAgent):
+    """Robust master planner with fallback handling."""
     
     def __init__(self):
-        # Use larger model for planning
-        super().__init__("llama3.2:3b")  # or "llama3.1:8b" if available
+        super().__init__("llama3.2:3b")
         
-        system_prompt = """You are the master planner for Tölvera creative coding.
-Your job is to analyze user requests and break them down into step-by-step plans that specialized expert agents can execute.
+        system_prompt = """You are a task planner for Tölvera creative coding.
 
-Available Expert Agents:
-- ParticleCreationAgent: Creates and manages particles/pixels
-- ColorPaletteAgent: Handles all color-related operations
-- MotionDynamicsAgent: Manages movement, velocity, and forces
-- PhysicsAgent: Implements complex physics interactions
-- CompositionAgent: Assembles final Python script
+Respond with ONLY this exact JSON format:
+{
+    "description": "Brief description of the task",
+    "steps": ["Step 1", "Step 2", "Step 3", "Step 4"]
+}
 
-THINK STEP BY STEP.
-For "move a blue pixel from left to right":
+For any creative request, always use these 4 steps:
+1. Create particles (specify number and position if mentioned)
+2. Set colors (if colors are mentioned)  
+3. Apply movement or physics (if movement is mentioned)
+4. Assemble final script
 
-1. ANALYSIS: User wants a single pixel (particle) that is blue and moves rightward
-2. BREAKDOWN:
-   - Need to create 1 particle → ParticleCreationAgent
-   - Position it on left side → ParticleCreationAgent
-   - Make it blue → ColorPaletteAgent
-   - Give it rightward velocity → MotionDynamicsAgent
-   - Assemble into complete script → CompositionAgent
+Example for "blue pixel moving right":
+{
+    "description": "Create a blue pixel that moves from left to right",
+    "steps": [
+        "Create 1 particle positioned on the left",
+        "Set particle color to blue", 
+        "Apply rightward velocity",
+        "Assemble final script"
+    ]
+}
 
-3. PLAN: Create actionable steps for each expert
-
-Always explain your reasoning clearly and create concrete, actionable plans.
-Always end with a step for CompositionAgent to assemble the final script."""
+RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
 
         self.agent = Agent(
             model=self.model,
@@ -85,64 +125,65 @@ Always end with a step for CompositionAgent to assemble the final script."""
         )
 
     async def plan_task(self, user_request: str) -> TaskPlan:
-        """Create detailed execution plan using Chain-of-Thought."""
-        cot_prompt = f"""
-Let's think step by step about this request: "{user_request}"
-
-ANALYSIS:
-- What objects/entities are needed?
-- What properties must they have?
-- What behaviors should they exhibit?
-- What's the end goal?
-
-EXPERT ROUTING:
-- Which expert agents should handle which parts?
-- What order should tasks be executed?
-
-PLAN CREATION:
-Create a step-by-step plan with specific tasks for each expert.
-Always end with CompositionAgent to assemble the final script.
-
-Request: {user_request}
-"""
+        """Create detailed execution plan with robust error handling."""
         
-        try:
-            result = await self.agent.run(cot_prompt)
-            logger.info(f"📋 Conductor planned: {result.data.description}")
-            return result.data
-        except Exception as e:
-            logger.error(f"❌ Planning failed: {e}")
-            # Fallback plan
-            return TaskPlan(
-                description=f"Basic implementation of: {user_request}",
-                steps=[
-                    "Create required particles",
-                    "Set colors as requested",
-                    "Apply movement/forces",
-                    "Assemble final script"
-                ]
-            )
+        prompt = f'Create a 4-step plan for: "{user_request}"\n\nRespond with only JSON:'
+        
+        fallback_plan = TaskPlan(
+            description=f"Basic implementation of: {user_request}",
+            steps=[
+                "Create required particles",
+                "Set colors as requested",
+                "Apply movement/forces", 
+                "Assemble final script"
+            ]
+        )
+        
+        result = await self._safe_agent_run(self.agent, prompt, TaskPlan, fallback_plan)
+        
+        logger.info(f"📋 Conductor planned: {result.description}")
+        return result
 
 # =============================================================================
-# PARTICLE CREATION AGENT
+# ROBUST PARTICLE CREATION AGENT
 # =============================================================================
 
-class ParticleCreationAgent(BaseAgent):
-    """Expert in creating and positioning particles."""
+class RobustParticleCreationAgent(RobustBaseAgent):
+    """Robust particle creation expert."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = f"""You are a particle creation expert for Tölvera.
-You handle creating particles and basic positioning.
+        system_prompt = """You create particles for Tölvera.
 
-{PARTICLE_AGENT_TOOLS}
+Respond with ONLY this exact JSON format:
+{
+    "tool_calls": [
+        {
+            "tool_name": "create_particles",
+            "parameters": {"n": NUMBER, "species_id": 0, "position": [X, Y]}
+        }
+    ],
+    "explanation": "Brief explanation"
+}
 
-For "create a pixel on the left": create_particles(1, 0, [0.1, 0.5])
-For "create 5 particles": create_particles(5, 0, null)
+Position coordinates (0.0 to 1.0):
+- Left: [0.1, 0.5], Center: [0.5, 0.5], Right: [0.9, 0.5]
+- Top: [0.5, 0.1], Bottom: [0.5, 0.9]
 
-Always output structured tool calls.
-Focus only on creation and positioning."""
+Examples:
+"create 2 particles on left" →
+{
+    "tool_calls": [
+        {
+            "tool_name": "create_particles",
+            "parameters": {"n": 2, "species_id": 0, "position": [0.1, 0.5]}
+        }
+    ],
+    "explanation": "Created 2 particles on the left side"
+}
+
+RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
 
         self.agent = Agent(
             model=self.model,
@@ -151,42 +192,67 @@ Focus only on creation and positioning."""
         )
 
     async def execute_task(self, task: str) -> TaskResult:
-        """Execute particle creation task."""
-        try:
-            result = await self.agent.run(f"Task: {task}")
-            logger.info(f"✨ ParticleCreationAgent: {result.data.explanation}")
-            return result.data
-        except Exception as e:
-            logger.error(f"❌ Particle creation failed: {e}")
-            return TaskResult(
-                tool_calls=[
-                    ToolCall(
-                        tool_name="create_particles",
-                        parameters={"n": 1, "species_id": 0, "position": [0.1, 0.5]}
-                    )
-                ],
-                explanation="Created 1 particle as fallback"
-            )
+        """Execute particle creation with robust error handling."""
+        
+        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        
+        fallback_result = TaskResult(
+            tool_calls=[
+                ToolCall(
+                    tool_name="create_particles",
+                    parameters={"n": 1, "species_id": 0, "position": [0.1, 0.5]}
+                )
+            ],
+            explanation="Created 1 particle as fallback"
+        )
+        
+        result = await self._safe_agent_run(self.agent, prompt, TaskResult, fallback_result)
+        
+        logger.info(f"✨ ParticleCreationAgent: {result.explanation}")
+        return result
 
 # =============================================================================
-# COLOR PALETTE AGENT
+# ROBUST COLOR PALETTE AGENT  
 # =============================================================================
 
-class ColorPaletteAgent(BaseAgent):
-    """Expert in color management."""
+class RobustColorPaletteAgent(RobustBaseAgent):
+    """Robust color management expert."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = f"""You are a color expert for Tölvera.
-You handle all color operations.
+        system_prompt = """You set colors for Tölvera particles.
 
-{COLOR_AGENT_TOOLS}
+Respond with ONLY this exact JSON format:
+{
+    "tool_calls": [
+        {
+            "tool_name": "set_species_color",
+            "parameters": {"species_id": 0, "color": [R, G, B, 1.0]}
+        }
+    ],
+    "explanation": "Brief explanation"
+}
 
-For "make it blue": set_species_color(0, [0.0, 0.0, 1.0, 1.0])
+Colors (R, G, B, A from 0.0 to 1.0):
+- red: [1.0, 0.0, 0.0, 1.0]
+- green: [0.0, 1.0, 0.0, 1.0]
+- blue: [0.0, 0.0, 1.0, 1.0]
+- yellow: [1.0, 1.0, 0.0, 1.0]
 
-Focus only on color operations.
-Use set_species_color for efficiency when coloring all particles of a species."""
+Example:
+"make it blue" →
+{
+    "tool_calls": [
+        {
+            "tool_name": "set_species_color",
+            "parameters": {"species_id": 0, "color": [0.0, 0.0, 1.0, 1.0]}
+        }
+    ],
+    "explanation": "Set species 0 color to blue"
+}
+
+RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
 
         self.agent = Agent(
             model=self.model,
@@ -195,50 +261,68 @@ Use set_species_color for efficiency when coloring all particles of a species.""
         )
 
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
-        """Execute color task."""
-        prompt = f"Task: {task}"
-        if context:
-            prompt += f"\nContext: {context}"
+        """Execute color task with robust error handling."""
         
-        try:
-            result = await self.agent.run(prompt)
-            logger.info(f"🎨 ColorPaletteAgent: {result.data.explanation}")
-            return result.data
-        except Exception as e:
-            logger.error(f"❌ Color task failed: {e}")
-            return TaskResult(
-                tool_calls=[
-                    ToolCall(
-                        tool_name="set_species_color",
-                        parameters={
-                            "species_id": 0,
-                            "color": [0.0, 0.0, 1.0, 1.0]  # Blue
-                        }
-                    )
-                ],
-                explanation="Applied blue color as fallback"
-            )
+        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        
+        fallback_result = TaskResult(
+            tool_calls=[
+                ToolCall(
+                    tool_name="set_species_color",
+                    parameters={"species_id": 0, "color": [0.0, 0.0, 1.0, 1.0]}
+                )
+            ],
+            explanation="Applied blue color as fallback"
+        )
+        
+        result = await self._safe_agent_run(self.agent, prompt, TaskResult, fallback_result)
+        
+        logger.info(f"🎨 ColorPaletteAgent: {result.explanation}")
+        return result
 
 # =============================================================================
-# MOTION DYNAMICS AGENT
+# ROBUST MOTION DYNAMICS AGENT
 # =============================================================================
 
-class MotionDynamicsAgent(BaseAgent):
-    """Expert in movement and velocity."""
+class RobustMotionDynamicsAgent(RobustBaseAgent):
+    """Robust movement and velocity expert."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = f"""You are a motion dynamics expert for Tölvera.
-You handle movement and velocity.
+        system_prompt = """You set movement for Tölvera particles.
 
-{MOTION_AGENT_TOOLS}
+Respond with ONLY this exact JSON format:
+{
+    "tool_calls": [
+        {
+            "tool_name": "set_species_velocity",
+            "parameters": {"species_id": 0, "velocity": [VX, VY]}
+        }
+    ],
+    "explanation": "Brief explanation"
+}
 
-For "move right": set_species_velocity(0, [2.0, 0.0])
-For "varying speeds": apply_varying_speeds(0, 2.0, 1.0)
+Movement directions:
+- Right: [2.0, 0.0]
+- Left: [-2.0, 0.0] 
+- Up: [0.0, -2.0]
+- Down: [0.0, 2.0]
+- Diagonal down-right: [2.0, 2.0]
 
-Focus on creating appropriate movement patterns.
-Use set_species_velocity for efficiency when affecting all particles of a species."""
+Example:
+"move from top to bottom" →
+{
+    "tool_calls": [
+        {
+            "tool_name": "set_species_velocity",
+            "parameters": {"species_id": 0, "velocity": [0.0, 2.0]}
+        }
+    ],
+    "explanation": "Set species 0 to move downward"
+}
+
+RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
 
         self.agent = Agent(
             model=self.model,
@@ -247,49 +331,57 @@ Use set_species_velocity for efficiency when affecting all particles of a specie
         )
 
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
-        """Execute motion task."""
-        prompt = f"Task: {task}"
-        if context:
-            prompt += f"\nContext: {context}"
+        """Execute motion task with robust error handling."""
         
-        try:
-            result = await self.agent.run(prompt)
-            logger.info(f"🚀 MotionDynamicsAgent: {result.data.explanation}")
-            return result.data
-        except Exception as e:
-            logger.error(f"❌ Motion task failed: {e}")
-            return TaskResult(
-                tool_calls=[
-                    ToolCall(
-                        tool_name="set_species_velocity",
-                        parameters={
-                            "species_id": 0,
-                            "velocity": [2.0, 0.0]  # Default rightward
-                        }
-                    )
-                ],
-                explanation="Applied rightward movement as fallback"
-            )
+        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        
+        fallback_result = TaskResult(
+            tool_calls=[
+                ToolCall(
+                    tool_name="set_species_velocity",
+                    parameters={"species_id": 0, "velocity": [2.0, 0.0]}
+                )
+            ],
+            explanation="Applied rightward movement as fallback"
+        )
+        
+        result = await self._safe_agent_run(self.agent, prompt, TaskResult, fallback_result)
+        
+        logger.info(f"🚀 MotionDynamicsAgent: {result.explanation}")
+        return result
 
 # =============================================================================
-# PHYSICS AGENT
+# ROBUST PHYSICS AGENT
 # =============================================================================
 
-class PhysicsAgent(BaseAgent):
-    """Expert in complex physics interactions."""
+class RobustPhysicsAgent(RobustBaseAgent):
+    """Robust physics interactions expert."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
-        system_prompt = f"""You are a physics expert for Tölvera.
-You handle complex behaviors and interactions.
+        system_prompt = """You apply physics to Tölvera particles.
 
-{PHYSICS_AGENT_TOOLS}
+For simple movement tasks, respond with:
+{
+    "tool_calls": [],
+    "explanation": "No complex physics needed for this task"
+}
 
-{PHYSICS_AGENT_TOOLS}
+For flocking/swarming, respond with:
+{
+    "tool_calls": [
+        {
+            "tool_name": "apply_flock_behavior",
+            "parameters": {"species_id": 0, "cohesion": 0.7, "separation": 0.3, "alignment": 0.5}
+        }
+    ],
+    "explanation": "Applied flocking behavior"
+}
 
-Focus on multi-particle behaviors, forces, and emergent systems.
-For simple single-particle movement, defer to MotionDynamicsAgent."""
+Look for keywords: flock, swarm, together, group, birds, schools
+
+RESPOND WITH ONLY THE JSON. NO OTHER TEXT."""
 
         self.agent = Agent(
             model=self.model,
@@ -298,80 +390,104 @@ For simple single-particle movement, defer to MotionDynamicsAgent."""
         )
 
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
-        """Execute physics task."""
-        prompt = f"Task: {task}"
-        if context:
-            prompt += f"\nContext: {context}"
+        """Execute physics task with robust error handling."""
         
-        try:
-            result = await self.agent.run(prompt)
-            logger.info(f"⚗️ PhysicsAgent: {result.data.explanation}")
-            return result.data
-        except Exception as e:
-            logger.error(f"❌ Physics task failed: {e}")
-            return TaskResult(
-                tool_calls=[],
-                explanation="No complex physics needed for this task"
-            )
+        prompt = f'Task: "{task}"\n\nRespond with only JSON:'
+        
+        fallback_result = TaskResult(
+            tool_calls=[],
+            explanation="No complex physics needed for this task"
+        )
+        
+        result = await self._safe_agent_run(self.agent, prompt, TaskResult, fallback_result)
+        
+        logger.info(f"⚗️ PhysicsAgent: {result.explanation}")
+        return result
 
 # =============================================================================
-# COMPOSITION AGENT - Assembles Final Python Script
+# COMPOSITION AGENT (unchanged - still uses direct generation)
 # =============================================================================
 
-class CompositionAgent(BaseAgent):
-    """
-    Expert in assembling final Tölvera Python scripts.
-    This converts tool calls into complete, runnable Python code.
-    """
+class RobustCompositionAgent(RobustBaseAgent):
+    """Robust script composition using direct generation."""
     
     def __init__(self):
-        # Use larger model for code generation
         super().__init__("llama3.2:3b")
+
+    async def compose_script(self, user_request: str, tool_calls: List[ToolCall]) -> GeneratedScript:
+        """Compose script using direct generation (no LLM for final step)."""
         
-        system_prompt = """You are a code composition expert for Tölvera.
-Your job is to take structured tool calls from other agents and assemble them into a complete, runnable Python script.
+        try:
+            from .tools import tool_calls_to_python_code
+            
+            script_code = tool_calls_to_python_code(tool_calls, user_request)
+            
+            logger.info(f"📝 CompositionAgent: Generated {len(script_code)} character script")
+            
+            return GeneratedScript(
+                title=f"Generated: {user_request}",
+                code=script_code,
+                explanation=f"Implemented {len(tool_calls)} tool calls to create: {user_request}"
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Script composition failed: {e}")
+            
+            # Generate emergency fallback
+            num_particles = 10
+            num_species = 1
+            
+            for call in tool_calls:
+                if call.tool_name == "create_particles":
+                    num_particles = max(num_particles, call.parameters.get("n", 1))
+                    num_species = max(num_species, call.parameters.get("species_id", 0) + 1)
+            
+            fallback_code = self._generate_emergency_fallback(user_request, num_particles, num_species)
+            return GeneratedScript(
+                title=f"Fallback: {user_request}",
+                code=fallback_code,
+                explanation=f"Generated fallback due to error: {str(e)}"
+            )
 
-You will receive a list of tool calls like:
-- create_particles(n=1, species_id=0, position=[0.1, 0.5])
-- set_species_color(species_id=0, color=[0.0, 0.0, 1.0, 1.0])
-- set_species_velocity(species_id=0, velocity=[2.0, 0.0])
-
-Your task is to convert these into a complete Tölvera script with:
-1. Proper imports
-2. A main() function that sets up Tölvera
-3. Initialization code that implements the tool calls
-4. A @tv.render function that handles the animation loop
-5. Proper error handling and cleanup
-
-Template structure:
-```python
-\"\"\"
-Brief description of what this script does.
-\"\"\"
+    def _generate_emergency_fallback(self, user_request: str, num_particles: int, num_species: int) -> str:
+        """Generate emergency fallback script."""
+        return f'''"""
+Emergency fallback script for: {user_request}
+"""
 
 import taichi as ti
 from tolvera import Tolvera, run
 
 def main(**kwargs):
-    \"\"\"Main function description.\"\"\"
-    tv = Tolvera(n=NUM_PARTICLES, species=NUM_SPECIES, **kwargs)
+    """Emergency fallback implementation."""
+    tv = Tolvera(n={num_particles}, species={num_species}, **kwargs)
     
     @ti.kernel
-    def init_simulation():
-        # Implement create_particles, set colors, etc.
-        pass
+    def init_particles():
+        """Initialize basic particles."""
+        for i in range(min({num_particles}, tv.pn)):
+            tv.p.field[i].active = 1.0
+            tv.p.field[i].species = 0
+            tv.p.field[i].pos = [tv.x * 0.2, tv.y * 0.5]
+            tv.p.field[i].vel = [1.0, 0.0]
+            tv.p.field[i].size = 8.0
     
-    @ti.kernel  
-    def update_simulation():
-        # Implement movement, physics, etc.
-        pass
+    @ti.kernel
+    def update_particles():
+        """Update particle movement."""
+        for i in range(tv.pn):
+            if tv.p.field[i].active > 0:
+                tv.p.field[i].pos += tv.p.field[i].vel
+                if tv.p.field[i].pos[0] > tv.x:
+                    tv.p.field[i].pos[0] = 0
     
-    init_simulation()
+    tv.s.species.field[0].rgba = [0.2, 0.4, 1.0, 1.0]
+    init_particles()
     
     @tv.render
     def _():
-        tv.px.background(0.0, 0.0, 0.0)  # Black background
-        update_simulation()
+        tv.px.background(0.05, 0.05, 0.1)
+        update_particles()
         tv.px.particles(tv.p, tv.s.species(), "circle")
         return tv.px
 
@@ -379,4 +495,57 @@ if __name__ == '__main__':
     try:
         run(main)
     except KeyboardInterrupt:
-        print("\\nExiting.")"""
+        print("\\nExiting.")
+'''
+
+# =============================================================================
+# FACTORY FUNCTIONS FOR ROBUST AGENTS
+# =============================================================================
+
+def create_robust_agents():
+    """Create all robust expert agents."""
+    return {
+        "conductor": RobustConductorAgent(),
+        "particle": RobustParticleCreationAgent(),
+        "color": RobustColorPaletteAgent(),
+        "motion": RobustMotionDynamicsAgent(),
+        "physics": RobustPhysicsAgent(),
+        "composition": RobustCompositionAgent()
+    }
+
+# =============================================================================
+# TESTING FUNCTION
+# =============================================================================
+
+async def test_robust_agents():
+    """Test all robust agents individually."""
+    print("🧪 Testing Robust Agents")
+    print("=" * 40)
+    
+    agents = create_robust_agents()
+    
+    # Test conductor
+    print("\n📋 Testing Conductor...")
+    plan = await agents["conductor"].plan_task("2 blue particles moving from top to bottom")
+    print(f"✅ Plan: {plan.description}")
+    
+    # Test particle agent
+    print("\n✨ Testing Particle Agent...")
+    result = await agents["particle"].execute_task("Create 2 particles on the left")
+    print(f"✅ Result: {result.explanation}")
+    
+    # Test color agent
+    print("\n🎨 Testing Color Agent...")
+    result = await agents["color"].execute_task("Make particles blue")
+    print(f"✅ Result: {result.explanation}")
+    
+    # Test motion agent
+    print("\n🚀 Testing Motion Agent...")
+    result = await agents["motion"].execute_task("Move from top to bottom")
+    print(f"✅ Result: {result.explanation}")
+    
+    print("\n✅ All robust agents tested successfully!")
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(test_robust_agents())

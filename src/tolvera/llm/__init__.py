@@ -1,9 +1,9 @@
 # src/tolvera/llm/__init__.py
 """
-Enhanced LLM integration for Tölvera with compositional MoE system.
+Enhanced LLM integration for Tölvera with robust compositional MoE system.
 
 This module provides both the original high-level sketch generation system
-and the new compositional Mixture-of-Experts system for natural language
+and the new robust compositional Mixture-of-Experts system for natural language
 to code generation.
 """
 
@@ -33,30 +33,61 @@ except ImportError:
     pass
 
 # =============================================================================
-# NEW: COMPOSITIONAL MoE SYSTEM
+# NEW: ROBUST COMPOSITIONAL MoE SYSTEM (RECOMMENDED)
 # =============================================================================
 
-# Main classes users will interact with
+# Primary robust classes (recommended for new projects)
+from .compositional import (
+    RobustCodeGenerationOrchestrator,
+    create_robust_orchestrator,
+    robust_quick_generate,
+    
+    # Robust expert agents
+    RobustConductorAgent,
+    RobustParticleCreationAgent,
+    RobustColorPaletteAgent, 
+    RobustMotionDynamicsAgent,
+    RobustPhysicsAgent,
+    RobustCompositionAgent,
+    create_robust_agents,
+    
+    # JSON utilities for robust parsing
+    clean_json_response,
+    safe_json_parse,
+    validate_tool_call_json,
+    validate_task_plan_json,
+)
+
+# Legacy classes (for backward compatibility)
 from .compositional import (
     CodeGenerationOrchestrator,
     SimpleOrchestrator,
     create_orchestrator,
-    
-    # Core data structures
+    quick_generate,
+)
+
+# Core data structures (used by both systems)
+from .compositional import (
     GeneratedScript,
     ToolCall,
     TaskResult,
     TaskPlan,
     
-    # Utility functions
+    # Tool definitions
+    STANDARD_COLORS,
+    get_color_by_name,
+    tool_calls_to_python_code,
+)
+
+# Utility functions
+from .compositional import (
     print_model_status,
     print_dependency_status,
     check_dependencies,
     save_generated_script,
     validate_generated_script,
     
-    # Convenience functions
-    quick_generate,
+    # System info and examples
     check_system_ready,
     get_example_requests,
     get_system_info,
@@ -68,19 +99,7 @@ from .compositional import (
     EXAMPLE_REQUESTS,
     TEST_REQUESTS,
     
-    # Color utilities
-    STANDARD_COLORS,
-    get_color_by_name,
-)
-
-# Expert agents for advanced usage
-from .compositional import (
-    ConductorAgent,
-    ParticleCreationAgent,
-    ColorPaletteAgent,
-    MotionDynamicsAgent,
-    PhysicsAgent,
-    CompositionAgent,
+    # Agent info
     AGENT_SPECIALIZATIONS,
 )
 
@@ -92,77 +111,132 @@ __all__ = [
     # === EXISTING SYSTEM (adjust based on your actual exports) ===
     "SketchAgent",  # Remove if you don't have this
     
-    # === NEW COMPOSITIONAL MoE SYSTEM ===
+    # === ROBUST MoE SYSTEM (RECOMMENDED) ===
     
-    # Primary user interfaces
-    "CodeGenerationOrchestrator",  # Main MoE orchestrator
-    "SimpleOrchestrator",          # Simplified version for testing
-    "create_orchestrator",         # Factory function
+    # Primary robust interfaces
+    "RobustCodeGenerationOrchestrator",  # Main robust MoE orchestrator
+    "create_robust_orchestrator",        # Factory for robust orchestrator
+    "robust_quick_generate",             # Quick robust script generation
     
-    # Convenience functions
-    "quick_generate",              # Quick script generation
-    "check_system_ready",          # System readiness check
-    "get_example_requests",        # Get example prompts
-    "get_system_info",             # System information
+    # Robust expert agents
+    "RobustConductorAgent",              # Robust master planner
+    "RobustParticleCreationAgent",       # Robust particle creation expert
+    "RobustColorPaletteAgent",           # Robust color management expert
+    "RobustMotionDynamicsAgent",         # Robust movement expert
+    "RobustPhysicsAgent",                # Robust physics expert
+    "RobustCompositionAgent",            # Robust code assembly expert
+    "create_robust_agents",              # Factory for robust agents
     
-    # Core data structures
-    "GeneratedScript",             # Generated script container
-    "ToolCall",                    # Tool call representation
-    "TaskResult",                  # Agent task result
-    "TaskPlan",                    # Conductor plan
+    # JSON utilities for robust parsing
+    "clean_json_response",               # Clean LLM JSON responses
+    "safe_json_parse",                   # Safe JSON parsing with fallbacks
+    "validate_tool_call_json",           # Validate tool call structure
+    "validate_task_plan_json",           # Validate task plan structure
+
     
-    # System utilities
-    "print_model_status",          # Check available models
-    "print_dependency_status",     # Check all dependencies
-    "check_dependencies",          # Dependency status dict
-    "save_generated_script",       # Save script to file
-    "validate_generated_script",   # Validate generated code
+    # === CORE DATA STRUCTURES ===
+    "GeneratedScript",                   # Generated script container
+    "ToolCall",                          # Tool call representation
+    "TaskResult",                        # Agent task result
+    "TaskPlan",                          # Conductor plan
     
-    # Performance and monitoring
-    "PerformanceMonitor",          # Performance tracking
+    # === UTILITY FUNCTIONS ===
+    "print_model_status",                # Check available models
+    "print_dependency_status",           # Check all dependencies
+    "check_dependencies",                # Dependency status dict
+    "save_generated_script",             # Save script to file
+    "validate_generated_script",         # Validate generated code
+    "tool_calls_to_python_code",         # Direct code generation
     
-    # Examples and testing
-    "EXAMPLE_REQUESTS",            # Example prompts for testing
-    "TEST_REQUESTS",               # Test prompts
+    # === SYSTEM UTILITIES ===
+    "check_system_ready",                # System readiness check
+    "get_example_requests",              # Get example prompts
+    "get_system_info",                   # System information
     
-    # Color utilities
-    "STANDARD_COLORS",             # Standard color definitions
-    "get_color_by_name",           # Get color by name
+    # === PERFORMANCE AND MONITORING ===
+    "PerformanceMonitor",                # Performance tracking
     
-    # Expert agents (for advanced usage)
-    "ConductorAgent",              # Master planner
-    "ParticleCreationAgent",       # Particle creation expert
-    "ColorPaletteAgent",           # Color management expert
-    "MotionDynamicsAgent",         # Movement expert
-    "PhysicsAgent",                # Physics expert
-    "CompositionAgent",            # Code assembly expert
-    "AGENT_SPECIALIZATIONS",       # Agent role descriptions
+    # === EXAMPLES AND TESTING ===
+    "EXAMPLE_REQUESTS",                  # Example prompts for testing
+    "TEST_REQUESTS",                     # Test prompts
+    
+    # === COLOR UTILITIES ===
+    "STANDARD_COLORS",                   # Standard color definitions
+    "get_color_by_name",                 # Get color by name
+    
+    # === METADATA ===
+    "AGENT_SPECIALIZATIONS",             # Agent role descriptions
 ]
 
 # =============================================================================
 # MODULE METADATA
 # =============================================================================
 
-__version__ = "0.1.0"
-__description__ = "Enhanced LLM integration for Tölvera with compositional MoE system"
+__version__ = "0.2.0"  # Updated for robust system
+__description__ = "Enhanced LLM integration for Tölvera with robust compositional MoE system"
+
+# =============================================================================
+# CONVENIENCE ALIASES AND FACTORY FUNCTIONS
+# =============================================================================
+
+# Recommended entry points for new users
+def create_moe_orchestrator(robust: bool = True):
+    """
+    Create an MoE orchestrator.
+    
+    Args:
+        robust: Whether to use the robust version (recommended)
+        
+    Returns:
+        Orchestrator instance
+    """
+    if robust:
+        return RobustCodeGenerationOrchestrator()
+    else:
+        return CodeGenerationOrchestrator()
+
+async def generate_script(request: str, save_file: str = None, robust: bool = True) -> GeneratedScript:
+    """
+    Generate a Tölvera script from natural language.
+    
+    Args:
+        request: Natural language request
+        save_file: Optional filename to save the script
+        robust: Whether to use the robust system (recommended)
+        
+    Returns:
+        GeneratedScript object
+        
+    Example:
+        script = await generate_script("move a blue pixel from left to right", "my_sketch.py")
+    """
+    if robust:
+        return await robust_quick_generate(request, save_file)
+    else:
+        return await quick_generate(request, save_file)
+
+# Backward compatibility aliases
+MoEOrchestrator = RobustCodeGenerationOrchestrator  # Recommended
+SketchGenerator = RobustCodeGenerationOrchestrator  # Alternative name
+LegacyMoEOrchestrator = CodeGenerationOrchestrator  # Legacy version
 
 # =============================================================================
 # USAGE EXAMPLES AND DOCUMENTATION
 # =============================================================================
 
 def print_usage_examples():
-    """Print usage examples for the MoE system."""
+    """Print usage examples for the robust MoE system."""
     print("""
-🎭 Tölvera MoE System Usage Examples
-====================================
+🎭 Tölvera Robust MoE System Usage Examples
+===========================================
 
-1. BASIC USAGE - Generate a script from natural language:
+1. RECOMMENDED USAGE - Robust system with automatic fallbacks:
 
-    from tolvera.llm import CodeGenerationOrchestrator
+    from tolvera.llm import RobustCodeGenerationOrchestrator
     import asyncio
     
     async def main():
-        orchestrator = CodeGenerationOrchestrator()
+        orchestrator = RobustCodeGenerationOrchestrator()
         script = await orchestrator.generate_script("move a blue pixel from left to right")
         
         # Save the script
@@ -173,13 +247,13 @@ def print_usage_examples():
     
     asyncio.run(main())
 
-2. QUICK GENERATION - Using convenience function:
+2. QUICK GENERATION - Using robust convenience function:
 
-    from tolvera.llm import quick_generate
+    from tolvera.llm import robust_quick_generate
     import asyncio
     
     async def main():
-        script = await quick_generate(
+        script = await robust_quick_generate(
             "create three red particles that move upward",
             save_file="red_particles.py"
         )
@@ -187,58 +261,52 @@ def print_usage_examples():
     
     asyncio.run(main())
 
-3. SYSTEM CHECK - Verify everything is ready:
+3. UNIVERSAL GENERATION - Auto-selects robust system:
+
+    from tolvera.llm import generate_script
+    import asyncio
+    
+    async def main():
+        # Uses robust system by default
+        script = await generate_script(
+            "blue particles bouncing around",
+            "bouncing.py"
+        )
+        print(f"Generated: {script.title}")
+    
+    asyncio.run(main())
+
+4. SYSTEM CHECK - Verify everything is ready:
 
     from tolvera.llm import check_system_ready, print_model_status
     
     if check_system_ready():
-        print("✅ System ready!")
+        print("✅ Robust system ready!")
     else:
         print("❌ Setup required")
         print_model_status()  # See what's missing
 
-4. BATCH GENERATION - Generate multiple scripts:
+5. JSON UTILITIES - For custom agent development:
 
-    from tolvera.llm import CodeGenerationOrchestrator, get_example_requests
-    import asyncio
+    from tolvera.llm import clean_json_response, safe_json_parse
     
-    async def batch_generate():
-        orchestrator = CodeGenerationOrchestrator()
-        requests = get_example_requests()[:3]  # First 3 examples
-        
-        for i, request in enumerate(requests):
-            script = await orchestrator.generate_script(request)
-            filename = f"generated_script_{i+1}.py"
-            
-            with open(filename, "w") as f:
-                f.write(script.code)
-            
-            print(f"Generated: {filename}")
+    # Clean messy LLM responses
+    messy_response = 'Here is JSON: {"tool": "create_particles"} Hope this helps!'
+    cleaned = clean_json_response(messy_response)
+    parsed = safe_json_parse(cleaned)
     
-    asyncio.run(batch_generate())
-
-5. VALIDATION - Check generated scripts:
-
-    from tolvera.llm import validate_generated_script
-    
-    with open("my_script.py", "r") as f:
-        script_content = f.read()
-    
-    validation = validate_generated_script(script_content)
-    print(f"Script validation score: {validation['score']}/100")
-    
-    if validation['warnings']:
-        print("Warnings:", validation['warnings'])
+    print(f"Cleaned: {cleaned}")
+    print(f"Parsed: {parsed}")
 
 6. PERFORMANCE MONITORING:
 
-    from tolvera.llm import PerformanceMonitor, CodeGenerationOrchestrator
+    from tolvera.llm import PerformanceMonitor, RobustCodeGenerationOrchestrator
     import asyncio
     import time
     
     async def monitored_generation():
         monitor = PerformanceMonitor()
-        orchestrator = CodeGenerationOrchestrator()
+        orchestrator = RobustCodeGenerationOrchestrator()
         
         start_time = time.time()
         try:
@@ -255,37 +323,35 @@ def print_usage_examples():
     
     asyncio.run(monitored_generation())
 
-7. ADVANCED - Using specific agents:
+7. LEGACY COMPATIBILITY - Using original system:
 
-    from tolvera.llm import ConductorAgent, CompositionAgent
+    from tolvera.llm import CodeGenerationOrchestrator  # Legacy
     import asyncio
     
-    async def advanced_usage():
-        conductor = ConductorAgent()
-        composition = CompositionAgent()
-        
-        # Get a plan
-        plan = await conductor.plan_task("create a swirling galaxy")
-        print(f"Plan: {plan.description}")
-        
-        # Create some basic tool calls (normally done by expert agents)
-        tool_calls = [...]  # Your tool calls here
-        
-        # Generate final script
-        script = await composition.compose_script("swirling galaxy", tool_calls)
+    async def legacy_usage():
+        orchestrator = CodeGenerationOrchestrator()  # Less robust
+        script = await orchestrator.generate_script("create particles")
         print(script.code)
     
-    asyncio.run(advanced_usage())
+    asyncio.run(legacy_usage())
 
 ====================================
+🌟 ROBUST SYSTEM ADVANTAGES:
+  ✅ Better JSON parsing and error handling
+  ✅ Fallback mechanisms at every level  
+  ✅ Individual agent isolation
+  ✅ Keyword-based fallback generation
+  ✅ Direct code composition (no LLM for final step)
+  ✅ Comprehensive error recovery
+
 For more examples, see the tests/ directory!
 """)
 
 def get_quick_start_guide() -> str:
     """Get a quick start guide for new users."""
     return """
-🚀 QUICK START GUIDE
-====================
+🚀 QUICK START GUIDE - Robust Tölvera MoE System
+===============================================
 
 1. Install dependencies:
    pip install pydantic-ai requests
@@ -302,12 +368,12 @@ def get_quick_start_guide() -> str:
    from tolvera.llm import check_system_ready
    check_system_ready()
 
-5. Generate your first script:
-   from tolvera.llm import quick_generate
+5. Generate your first script (ROBUST):
+   from tolvera.llm import robust_quick_generate
    import asyncio
    
    async def main():
-       script = await quick_generate(
+       script = await robust_quick_generate(
            "move a blue pixel from left to right",
            "my_first_sketch.py"
        )
@@ -318,16 +384,14 @@ def get_quick_start_guide() -> str:
 6. Run your generated script:
    python my_first_sketch.py
 
-That's it! You're generating Tölvera sketches from natural language! 🎉
+🎉 That's it! You're generating robust Tölvera sketches from natural language!
+
+🔧 TROUBLESHOOTING:
+   • If agents fail, the robust system automatically uses fallbacks
+   • JSON parsing errors are automatically cleaned and retried
+   • Ultimate fallback ensures you always get a working script
+   • Use test_robust_system.py to verify functionality
 """
-
-# =============================================================================
-# BACKWARD COMPATIBILITY
-# =============================================================================
-
-# Provide aliases for backward compatibility if needed
-MoEOrchestrator = CodeGenerationOrchestrator  # Alternative name
-SketchGenerator = CodeGenerationOrchestrator  # Alternative name
 
 # =============================================================================
 # MODULE INITIALIZATION
@@ -344,10 +408,10 @@ def _initialize_module():
         
         missing_deps = [k for k, v in deps.items() if not v]
         if missing_deps:
-            logger.info(f"MoE system available but some dependencies missing: {missing_deps}")
+            logger.info(f"Robust MoE system available but some dependencies missing: {missing_deps}")
             logger.info("Run tolvera.llm.print_dependency_status() for details")
         else:
-            logger.info("✅ MoE system fully ready")
+            logger.info("✅ Robust MoE system fully ready")
             
     except Exception as e:
         logger.debug(f"Module initialization check failed: {e}")
@@ -357,3 +421,14 @@ try:
     _initialize_module()
 except Exception:
     pass  # Don't fail module import
+
+# Add new functions to exports
+__all__.extend([
+    "create_moe_orchestrator",
+    "generate_script",
+    "print_usage_examples",
+    "get_quick_start_guide",
+    "MoEOrchestrator",
+    "SketchGenerator", 
+    "LegacyMoEOrchestrator"
+])

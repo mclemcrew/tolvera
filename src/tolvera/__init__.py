@@ -11,7 +11,7 @@ from .utils import *
 from .vera import Vera
 
 # CORRECTED: Import the correct class name
-from .llm import CodeGenerationOrchestrator  # Changed from SketchOrchestrator
+from .llm import RobustCodeGenerationOrchestrator  # Changed from SketchOrchestrator
 
 from .tolvera_ import Tolvera
 from .rec import VideoRecorder
@@ -26,7 +26,7 @@ __all__ = [
     "Pixels",
     "StateDict",
     "Vera",
-    "CodeGenerationOrchestrator",  # Changed from SketchOrchestrator
+    "RobustCodeGenerationOrchestrator",  # Changed from SketchOrchestrator
     "Tolvera",
     "VideoRecorder",
     "DualSense",

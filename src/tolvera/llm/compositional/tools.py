@@ -215,6 +215,155 @@ if __name__ == '__main__':
         print("\\nExiting.")'''
 
 # =============================================================================
+# SCRIPT GENERATION HELPERS
+# =============================================================================
+
+def tool_calls_to_python_code(tool_calls: List[ToolCall], user_request: str) -> str:
+    """Convert tool calls directly to Python code without JSON."""
+    
+    # Analyze tool calls to determine parameters
+    num_particles = 10
+    num_species = 1
+    init_lines = []
+    update_lines = []
+    has_movement = False
+    
+    for call in tool_calls:
+        if call.tool_name == "create_particles":
+            n = call.parameters.get("n", 1)
+            species_id = call.parameters.get("species_id", 0)
+            position = call.parameters.get("position")
+            
+            num_particles = max(num_particles, n)
+            num_species = max(num_species, species_id + 1)
+            
+            if position:
+                init_lines.extend([
+                    f"        # Create {n} particles at position {position}",
+                    f"        for i in range({n}):",
+                    f"            tv.p.field[i].active = 1.0",
+                    f"            tv.p.field[i].species = {species_id}",
+                    f"            tv.p.field[i].pos = [tv.x * {position[0]}, tv.y * {position[1]}]",
+                    f"            tv.p.field[i].vel = [0.0, 0.0]",
+                    f"            tv.p.field[i].size = 8.0",
+                    f"            tv.p.field[i].mass = 1.0"
+                ])
+            else:
+                init_lines.extend([
+                    f"        # Create {n} particles randomly",
+                    f"        for i in range({n}):",
+                    f"            tv.p.field[i].active = 1.0",
+                    f"            tv.p.field[i].species = {species_id}",
+                    f"            tv.p.field[i].pos = [tv.x * ti.random(), tv.y * ti.random()]",
+                    f"            tv.p.field[i].vel = [0.0, 0.0]",
+                    f"            tv.p.field[i].size = 8.0",
+                    f"            tv.p.field[i].mass = 1.0"
+                ])
+        
+        elif call.tool_name == "set_species_color":
+            species_id = call.parameters.get("species_id", 0)
+            color = call.parameters.get("color", [1.0, 1.0, 1.0, 1.0])
+            init_lines.extend([
+                f"        # Set species {species_id} color",
+                f"        tv.s.species.field[{species_id}].rgba = {color}"
+            ])
+        
+        elif call.tool_name == "set_species_velocity":
+            species_id = call.parameters.get("species_id", 0)
+            velocity = call.parameters.get("velocity", [0.0, 0.0])
+            has_movement = True
+            init_lines.extend([
+                f"        # Set species {species_id} velocity",
+                f"        for i in range(tv.pn):",
+                f"            if tv.p.field[i].species == {species_id}:",
+                f"                tv.p.field[i].vel = {velocity}"
+            ])
+        
+        elif call.tool_name == "apply_varying_speeds":
+            species_id = call.parameters.get("species_id", 0)
+            base_speed = call.parameters.get("base_speed", 2.0)
+            variation = call.parameters.get("variation", 1.0)
+            has_movement = True
+            init_lines.extend([
+                f"        # Apply varying speeds to species {species_id}",
+                f"        for i in range(tv.pn):",
+                f"            if tv.p.field[i].species == {species_id}:",
+                f"                speed_factor = {base_speed} + (ti.random() - 0.5) * {variation}",
+                f"                tv.p.field[i].speed = speed_factor"
+            ])
+    
+    # Add movement code if needed
+    if has_movement:
+        update_lines.extend([
+            "        # Update particle movement",
+            "        for i in range(tv.pn):",
+            "            if tv.p.field[i].active > 0:",
+            "                tv.p.field[i].pos += tv.p.field[i].vel",
+            "                # Boundary wrapping",
+            "                if tv.p.field[i].pos[0] > tv.x:",
+            "                    tv.p.field[i].pos[0] = 0",
+            "                if tv.p.field[i].pos[0] < 0:",
+            "                    tv.p.field[i].pos[0] = tv.x",
+            "                if tv.p.field[i].pos[1] > tv.y:",
+            "                    tv.p.field[i].pos[1] = 0",
+            "                if tv.p.field[i].pos[1] < 0:",
+            "                    tv.p.field[i].pos[1] = tv.y"
+        ])
+    
+    # Generate complete script
+    init_code = "\n".join(init_lines) if init_lines else "        pass"
+    update_code = "\n".join(update_lines) if update_lines else "        pass"
+    
+    script = f'''"""
+{user_request}
+Generated by Tölvera MoE system.
+"""
+
+import taichi as ti
+from tolvera import Tolvera, run
+
+def main(**kwargs):
+    """
+    {user_request}
+    """
+    tv = Tolvera(n={num_particles}, species={num_species}, **kwargs)
+    
+    @ti.kernel
+    def init_simulation():
+        """Initialize the simulation based on user request."""
+{init_code}
+    
+    @ti.kernel
+    def update_simulation():
+        """Update simulation each frame."""
+{update_code}
+    
+    # Initialize the simulation
+    init_simulation()
+    
+    @tv.render
+    def _():
+        # Clear background
+        tv.px.background(0.0, 0.0, 0.0)
+        
+        # Update simulation
+        update_simulation()
+        
+        # Render particles
+        tv.px.particles(tv.p, tv.s.species(), "circle")
+        
+        return tv.px
+
+if __name__ == '__main__':
+    try:
+        run(main)
+    except KeyboardInterrupt:
+        print("\\nExiting.")
+'''
+    
+    return script
+
+# =============================================================================
 # EXPERT AGENT TOOL DESCRIPTIONS
 # =============================================================================
 
