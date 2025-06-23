@@ -13,30 +13,22 @@ logger = logging.getLogger(__name__)
 
 def clean_json_response(response: str) -> str:
     """
-    Clean up common JSON issues in LLM responses.
-    
-    Args:
-        response: Raw response from LLM
-        
-    Returns:
-        Cleaned JSON string
+    IMPROVED: Clean up common JSON issues in LLM responses.
     """
     if not response:
         return "{}"
     
-    # Remove common prefixes/suffixes
     response = response.strip()
     
     # Remove markdown code blocks
     if "```json" in response:
         response = response.split("```json")[1].split("```")[0].strip()
     elif "```" in response:
-        # Find the first ``` and take content until next ```
         parts = response.split("```")
         if len(parts) >= 3:
             response = parts[1].strip()
     
-    # Remove common text around JSON
+    # Remove common text prefixes
     prefixes_to_remove = [
         "Here is the JSON:",
         "Here's the JSON:",
@@ -54,10 +46,9 @@ def clean_json_response(response: str) -> str:
             response = response[len(prefix):].strip()
             break
     
-    # Find JSON boundaries - look for outermost braces
+    # Find JSON boundaries
     start_idx = response.find('{')
     if start_idx == -1:
-        # No opening brace found, return empty JSON
         return "{}"
     
     # Find matching closing brace
@@ -75,31 +66,36 @@ def clean_json_response(response: str) -> str:
     
     response = response[start_idx:end_idx+1]
     
-    # Fix common JSON issues
+    # IMPROVED: Fix common JSON issues
     response = fix_common_json_issues(response)
     
     return response.strip()
 
 def fix_common_json_issues(json_str: str) -> str:
     """
-    Fix common JSON formatting issues.
-    
-    Args:
-        json_str: JSON string to fix
-        
-    Returns:
-        Fixed JSON string
+    IMPROVED: Fix common JSON formatting issues from LLMs.
     """
-    # Remove trailing commas before closing braces/brackets
+    # Remove trailing commas
     json_str = re.sub(r',\s*}', '}', json_str)
     json_str = re.sub(r',\s*]', ']', json_str)
     
-    # Fix single quotes to double quotes (common LLM mistake)
-    # Be careful not to change quotes inside strings
+    # Fix single quotes to double quotes
     json_str = fix_quotes(json_str)
     
-    # Remove comments (// style)
+    # Remove comments
     json_str = re.sub(r'//.*?$', '', json_str, flags=re.MULTILINE)
+    json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
+    
+    # IMPROVED: Fix JavaScript-like syntax
+    # Fix Math.random() and similar JavaScript code
+    json_str = re.sub(r'Math\.random\(\)\s*\*\s*(\d+)', r'0.5', json_str)
+    json_str = re.sub(r'Math\.random\(\)', r'0.5', json_str)
+    
+    # Fix undefined/null values
+    json_str = re.sub(r'\bundefined\b', 'null', json_str)
+    
+    # Fix missing quotes around property names
+    json_str = re.sub(r'(\w+):', r'"\1":', json_str)
     
     # Remove extra whitespace
     json_str = re.sub(r'\s+', ' ', json_str)
@@ -108,8 +104,7 @@ def fix_common_json_issues(json_str: str) -> str:
 
 def fix_quotes(json_str: str) -> str:
     """
-    Fix quote issues in JSON string.
-    Convert single quotes to double quotes while preserving string content.
+    IMPROVED: Fix quote issues in JSON string.
     """
     result = []
     in_string = False
@@ -140,14 +135,14 @@ def fix_quotes(json_str: str) -> str:
 
 def safe_json_parse(json_str: str, expected_type: type = dict) -> Optional[Dict[str, Any]]:
     """
-    Safely parse JSON string with error handling and aggressive cleaning.
+    IMPROVED: Safely parse JSON string with aggressive cleaning and error handling.
     """
     if not json_str or not json_str.strip():
         logger.warning("Empty JSON string")
         return None
         
     try:
-        # First, clean the response more aggressively
+        # First, clean the response aggressively
         cleaned = clean_json_response(json_str)
         logger.debug(f"Cleaned JSON: {cleaned}")
         
@@ -155,8 +150,9 @@ def safe_json_parse(json_str: str, expected_type: type = dict) -> Optional[Dict[
         strategies = [
             lambda s: json.loads(s),  # Direct parse
             lambda s: json.loads(s.strip('"')),  # Remove outer quotes
-            lambda s: json.loads(s.replace("'", '"')),  # Fix quotes
+            lambda s: json.loads(s.replace("'", '"')),  # Fix quotes again
             lambda s: json.loads(s.replace('\n', '').replace('\t', '')),  # Remove whitespace
+            lambda s: json.loads(re.sub(r',\s*([}\]])', r'\1', s)),  # Remove trailing commas more aggressively
         ]
         
         parsed = None
@@ -176,7 +172,6 @@ def safe_json_parse(json_str: str, expected_type: type = dict) -> Optional[Dict[
         # Validate type
         if not isinstance(parsed, expected_type):
             logger.warning(f"Parsed JSON is {type(parsed)}, expected {expected_type}")
-            # Try to convert if possible
             if expected_type == dict and isinstance(parsed, str):
                 # Maybe it's a string containing JSON
                 try:
@@ -190,7 +185,6 @@ def safe_json_parse(json_str: str, expected_type: type = dict) -> Optional[Dict[
         logger.error(f"Unexpected error parsing JSON: {e}")
         logger.error(f"Input was: {repr(json_str[:200])}...")
         return None
-
 
 def extract_json_from_text(text: str) -> Optional[str]:
     """
@@ -220,8 +214,7 @@ def extract_json_from_text(text: str) -> Optional[str]:
 
 def validate_task_plan_json(json_obj: Dict[str, Any]) -> bool:
     """
-    Validate that a JSON object has the expected structure for task plans.
-    More flexible validation that handles common model variations.
+    IMPROVED: Validate that a JSON object has the expected structure for task plans.
     """
     if not isinstance(json_obj, dict):
         return False
@@ -240,35 +233,34 @@ def validate_task_plan_json(json_obj: Dict[str, Any]) -> bool:
         logger.warning(f"steps should be list, got {type(json_obj['steps'])}")
         return False
     
-    # More flexible step validation - convert objects to strings if needed
+    # IMPROVED: More flexible step validation
     cleaned_steps = []
     for i, step in enumerate(json_obj["steps"]):
         if isinstance(step, str):
             cleaned_steps.append(step)
         elif isinstance(step, dict):
-            # Convert dict to string (common model error)
+            # Convert dict to string
             if "step" in step:
                 cleaned_steps.append(step["step"])
             elif "description" in step:
                 cleaned_steps.append(step["description"])
+            elif "action" in step:
+                cleaned_steps.append(step["action"])
             else:
-                # Use the whole dict as string representation
                 cleaned_steps.append(str(step))
             logger.info(f"Converted step {i} from dict to string")
         else:
-            # Convert other types to string
             cleaned_steps.append(str(step))
             logger.warning(f"Converted step {i} from {type(step)} to string")
     
-    # Update the original json_obj with cleaned steps
+    # Update with cleaned steps
     json_obj["steps"] = cleaned_steps
     
     return True
 
 def validate_tool_call_json(json_obj: Dict[str, Any]) -> bool:
     """
-    Validate that a JSON object has the expected structure for tool calls.
-    More flexible validation that handles common model variations.
+    IMPROVED: Validate that a JSON object has the expected structure for tool calls.
     """
     if not isinstance(json_obj, dict):
         return False
@@ -281,38 +273,7 @@ def validate_tool_call_json(json_obj: Dict[str, Any]) -> bool:
     
     if not isinstance(json_obj["tool_calls"], list):
         logger.warning(f"tool_calls should be list, got {type(json_obj['tool_calls'])}")
-        return False
-    
-    if not isinstance(json_obj["explanation"], str):
-        logger.warning(f"explanation should be string, got {type(json_obj['explanation'])}")
-        return False
-    
-    # Validate and clean each tool call
-    cleaned_tool_calls = []
-    for i, tool_call in enumerate(json_obj["tool_calls"]):
-        if not isinstance(tool_call, dict):
-            logger.warning(f"tool_call {i} should be dict, got {type(tool_call)}")
-            continue
-        
-        # Ensure required keys exist
-        if "tool_name" not in tool_call:
-            logger.warning(f"tool_call {i} missing tool_name")
-            continue
-            
-        if "parameters" not in tool_call:
-            # Add empty parameters if missing
-            tool_call["parameters"] = {}
-            logger.info(f"Added empty parameters to tool_call {i}")
-        
-        cleaned_tool_calls.append(tool_call)
-    
-    # Update with cleaned tool calls
-    json_obj["tool_calls"] = cleaned_tool_calls
-    
-    return len(cleaned_tool_calls) > 0 or len(json_obj["tool_calls"]) == 0  # Allow empty tool_calls
 
-
-# Testing function
 def test_json_utils():
     """Test the JSON utilities with various malformed inputs."""
     print("🧪 Testing JSON Utilities")
@@ -355,3 +316,6 @@ def test_json_utils():
 
 if __name__ == "__main__":
     test_json_utils()
+    
+    
+    
