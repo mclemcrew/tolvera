@@ -18,18 +18,15 @@ Example usage:
 """
 
 # =============================================================================
-# MAIN ORCHESTRATOR CLASSES (ROBUST VERSIONS)
+# MAIN ORCHESTRATOR CLASS
 # =============================================================================
 
-# Primary robust orchestrator (recommended)
 from .orchestrator import RobustCodeGenerationOrchestrator, create_robust_orchestrator
 
-
 # =============================================================================
-# EXPERT AGENTS (ROBUST VERSIONS RECOMMENDED)
+# EXPERT AGENTS
 # =============================================================================
 
-# Robust expert agents (recommended)
 from .agents import (
     RobustConductorAgent,
     RobustParticleCreationAgent, 
@@ -84,7 +81,7 @@ from .tools import (
 )
 
 # =============================================================================
-# JSON UTILITIES (NEW)
+# JSON UTILITIES
 # =============================================================================
 
 from .json_utils import (
@@ -140,7 +137,7 @@ from .utils import (
 # VERSION INFO AND AGENT SPECIALIZATIONS
 # =============================================================================
 
-__version__ = "0.2.0"  # Updated version for robust system
+__version__ = "0.2.0"
 __author__ = "Tölvera MoE System"
 __description__ = "Robust Mixture-of-Experts system for generating Tölvera sketches from natural language"
 
@@ -159,83 +156,64 @@ AGENT_SPECIALIZATIONS = {
 # =============================================================================
 
 __all__ = [
-    # === PRIMARY ROBUST CLASSES (RECOMMENDED) ===
-    "RobustCodeGenerationOrchestrator",  # Main robust MoE orchestrator
-    "create_robust_orchestrator",        # Factory for robust orchestrator
-
+    # === PRIMARY ROBUST CLASSES ===
+    "RobustCodeGenerationOrchestrator",
+    "create_robust_orchestrator",
     
     # === CORE DATA STRUCTURES ===
-    "GeneratedScript",                   # Generated script container
-    "ToolCall",                          # Tool call representation
-    "TaskResult",                        # Agent task result
-    "TaskPlan",                          # Conductor plan
+    "GeneratedScript",
+    "ToolCall",
+    "TaskResult",
+    "TaskPlan",
     
-    # === ROBUST EXPERT AGENTS (RECOMMENDED) ===
-    "RobustConductorAgent",              # Robust master planner
-    "RobustParticleCreationAgent",       # Robust particle creation expert
-    "RobustColorPaletteAgent",           # Robust color management expert
-    "RobustMotionDynamicsAgent",         # Robust movement expert
-    "RobustPhysicsAgent",                # Robust physics expert
-    "RobustCompositionAgent",            # Robust code assembly expert
-    "create_robust_agents",              # Factory for robust agents
+    # === ROBUST EXPERT AGENTS ===
+    "RobustConductorAgent",
+    "RobustParticleCreationAgent",
+    "RobustColorPaletteAgent",
+    "RobustMotionDynamicsAgent",
+    "RobustPhysicsAgent",
+    "RobustCompositionAgent",
+    "create_robust_agents",
     
     # === UTILITY FUNCTIONS ===
-    "print_model_status",                # Check available models
-    "print_dependency_status",           # Check all dependencies
-    "check_dependencies",                # Dependency status dict
-    "save_generated_script",             # Save script to file
-    "validate_generated_script",         # Validate generated code
-    "tool_calls_to_python_code",         # Direct code generation
+    "print_model_status",
+    "print_dependency_status",
+    "check_dependencies",
+    "save_generated_script",
+    "validate_generated_script",
+    "tool_calls_to_python_code",
     
     # === JSON UTILITIES ===
-    "clean_json_response",               # Clean LLM JSON responses
-    "safe_json_parse",                   # Safe JSON parsing
-    "validate_tool_call_json",           # Validate tool call structure
-    "validate_task_plan_json",           # Validate task plan structure
+    "clean_json_response",
+    "safe_json_parse",
+    "validate_tool_call_json",
+    "validate_task_plan_json",
     
     # === PERFORMANCE AND MONITORING ===
-    "PerformanceMonitor",                # Performance tracking
+    "PerformanceMonitor",
     
     # === EXAMPLES AND TESTING ===
-    "EXAMPLE_REQUESTS",                  # Example prompts for testing
-    "TEST_REQUESTS",                     # Test prompts
+    "EXAMPLE_REQUESTS",
+    "TEST_REQUESTS",
     
     # === COLOR UTILITIES ===
-    "STANDARD_COLORS",                   # Standard color definitions
-    "get_color_by_name",                 # Get color by name
+    "STANDARD_COLORS",
+    "get_color_by_name",
     
     # === METADATA ===
-    "AGENT_SPECIALIZATIONS",             # Agent role descriptions
+    "AGENT_SPECIALIZATIONS",
+    # === CONVENIENCE FUNCTIONS ===
+    "robust_quick_generate", 
+    "check_system_ready",
+    "get_example_requests",
+    "get_system_info",
+    "create_recommended_orchestrator",
+    "print_usage_recommendations"
 ]
 
 # =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
-
-async def quick_generate(request: str, save_file: str = None, use_robust: bool = True) -> GeneratedScript:
-    """
-    Convenience function to quickly generate a script from a request.
-    
-    Args:
-        request: Natural language request
-        save_file: Optional filename to save the script
-        use_robust: Whether to use the robust orchestrator (recommended)
-        
-    Returns:
-        GeneratedScript object
-        
-    Example:
-        script = await quick_generate("move a blue pixel from left to right", "blue_pixel.py")
-    """
-    if use_robust:
-        orchestrator = RobustCodeGenerationOrchestrator()
-        
-    script = await orchestrator.generate_script(request)
-    
-    if save_file:
-        save_generated_script(script.code, save_file)
-    
-    return script
 
 async def robust_quick_generate(request: str, save_file: str = None) -> GeneratedScript:
     """
@@ -248,7 +226,13 @@ async def robust_quick_generate(request: str, save_file: str = None) -> Generate
     Returns:
         GeneratedScript object
     """
-    return await quick_generate(request, save_file, use_robust=True)
+    orchestrator = RobustCodeGenerationOrchestrator()
+    script = await orchestrator.generate_script(request)
+    
+    if save_file:
+        save_generated_script(script.code, save_file)
+    
+    return script
 
 def check_system_ready() -> bool:
     """
@@ -330,10 +314,6 @@ CONVENIENCE FUNCTION (Recommended):
   from tolvera.llm.compositional import robust_quick_generate
   script = await robust_quick_generate("your request", "output.py")
 
-LEGACY (Backward Compatibility):
-  from tolvera.llm.compositional import CodeGenerationOrchestrator
-  orchestrator = CodeGenerationOrchestrator()
-
 KEY IMPROVEMENTS IN ROBUST SYSTEM:
   ✅ Better JSON parsing and error handling
   ✅ Fallback mechanisms at every level
@@ -345,15 +325,3 @@ KEY IMPROVEMENTS IN ROBUST SYSTEM:
 TESTING:
   Use test_robust_system.py to verify functionality
 """)
-
-# Add to __all__ for completeness
-__all__.extend([
-    "quick_generate",
-    "robust_quick_generate", 
-    "check_system_ready",
-    "get_example_requests",
-    "get_system_info",
-    "create_recommended_orchestrator",
-    "create_legacy_orchestrator",
-    "print_usage_recommendations"
-])

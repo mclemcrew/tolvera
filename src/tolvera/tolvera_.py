@@ -56,7 +56,7 @@ from .patches import *
 from .pixels import *
 from .utils import *
 from .vera import Vera
-from .llm import CodeGenerationOrchestrator
+from .llm import RobustCodeGenerationOrchestrator
 
 class Tolvera:
     """Tolvera main class.

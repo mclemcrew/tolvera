@@ -9,10 +9,7 @@ from .pixels import *
 from .state import StateDict
 from .utils import *
 from .vera import Vera
-
-# CORRECTED: Import the correct class name
-from .llm import RobustCodeGenerationOrchestrator  # Changed from SketchOrchestrator
-
+from .llm import RobustCodeGenerationOrchestrator
 from .tolvera_ import Tolvera
 from .rec import VideoRecorder
 from .dualsense import DualSense
@@ -26,7 +23,7 @@ __all__ = [
     "Pixels",
     "StateDict",
     "Vera",
-    "RobustCodeGenerationOrchestrator",  # Changed from SketchOrchestrator
+    "RobustCodeGenerationOrchestrator",
     "Tolvera",
     "VideoRecorder",
     "DualSense",
