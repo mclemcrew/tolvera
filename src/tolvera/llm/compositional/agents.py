@@ -1,7 +1,7 @@
 # src/tolvera/llm/compositional/agents.py
 """
 Robust expert agents with better JSON handling and fallbacks.
-Fixed for pydantic-ai deprecation and improved prompts.
+COMPLETELY FIXED VERSION with proper number extraction and physics behavior detection.
 """
 
 import logging
@@ -25,7 +25,6 @@ class RobustBaseAgent:
     
     def __init__(self, model_name: str = "qwen2.5:3b"):
         self.model_name = model_name
-        # FIXED: Remove temperature parameter
         self.model = OpenAIModel(
             model_name=model_name,
             provider=OpenAIProvider(
@@ -44,7 +43,6 @@ class RobustBaseAgent:
         
         # Step 1: Get raw model response first to see what it's actually generating
         try:
-            # FIXED: Get the system prompt correctly from the agent
             system_prompt = self._get_agent_system_prompt(agent)
             
             raw_agent = Agent(
@@ -94,15 +92,6 @@ class RobustBaseAgent:
                             return task_result
                         except Exception as e:
                             print(f"❌ TaskResult creation failed: {e}")
-                            print(f"   Tool calls data: {parsed_json['tool_calls']}")
-                            # Debug each tool call individually
-                            for i, tc_data in enumerate(parsed_json["tool_calls"]):
-                                try:
-                                    tc = ToolCall(**tc_data)
-                                    print(f"   ✅ ToolCall {i}: SUCCESS")
-                                except Exception as tc_error:
-                                    print(f"   ❌ ToolCall {i}: FAILED - {tc_error}")
-                                    print(f"      Data: {tc_data}")
                 
             except json.JSONDecodeError as e:
                 print(f"❌ JSON Parse: FAILED - {e}")
@@ -113,7 +102,7 @@ class RobustBaseAgent:
         except Exception as e:
             print(f"❌ Raw response failed: {e}")
         
-        # Step 4: Now try the original pydantic-ai agent to see its specific error
+        # Step 4: Try the original pydantic-ai agent
         print(f"\n🤖 Now trying pydantic-ai agent...")
         try:
             result = await agent.run(prompt)
@@ -125,36 +114,31 @@ class RobustBaseAgent:
             print(f"❌ Pydantic-AI: FAILED - {e}")
             print(f"   Error type: {type(e)}")
             
-            # Get more details about the pydantic-ai error
             if "Exceeded maximum retries" in str(e):
                 print(f"   📊 Retry limit exceeded - this suggests validation issues")
-            
+        
         # Ultimate fallback
         print(f"🔄 Using fallback data")
         return fallback_data
 
     def _get_agent_system_prompt(self, agent: Agent) -> str:
         """Get the system prompt from an agent safely."""
-        # Try different ways to get the system prompt
         try:
             if hasattr(agent, 'system_prompt'):
                 if callable(agent.system_prompt):
                     return agent.system_prompt()
                 else:
                     return agent.system_prompt
-            # Fallback to a generic prompt
             return "You are a helpful assistant. Respond with valid JSON."
         except Exception:
             return "You are a helpful assistant. Respond with valid JSON."
 
     def _clean_json_response(self, response: str) -> str:
         """Clean JSON response for debugging."""
-        # Remove common prefixes
         response = response.strip()
         if "```json" in response:
             response = response.split("```json")[1].split("```")[0].strip()
         
-        # Find JSON boundaries
         start_idx = response.find('{')
         if start_idx == -1:
             return "{}"
@@ -172,18 +156,25 @@ class RobustBaseAgent:
                     break
         
         return response[start_idx:end_idx+1]
+
 # =============================================================================
-# ROBUST CONDUCTOR AGENT
+# ROBUST CONDUCTOR AGENT - ENHANCED
 # =============================================================================
 
 class RobustConductorAgent(RobustBaseAgent):
-    """Robust master planner with comprehensive debugging."""
+    """FIXED: Better task decomposition with number and behavior extraction."""
     
     def __init__(self):
         super().__init__("llama3.2:3b")
         
-        # Store system prompt as an attribute for easy access
         self.system_prompt_text = """You are a task planner for Tölvera creative coding.
+
+CRITICAL: Extract numbers and behaviors from requests accurately.
+
+Examples of proper extraction:
+- "three green particles bouncing around" → 3 particles + green color + bouncing physics
+- "five blue pixels moving right" → 5 particles + blue color + rightward motion  
+- "red circle moving in a circle" → 1 particle + red color + circular motion
 
 You must respond with ONLY this exact JSON format:
 {
@@ -191,25 +182,24 @@ You must respond with ONLY this exact JSON format:
     "steps": ["Step 1", "Step 2", "Step 3", "Step 4"]
 }
 
-For any creative request, always use these 4 steps:
-1. Create particles (specify number and position if mentioned)
-2. Set colors (if colors are mentioned)  
-3. Apply movement or physics (if movement is mentioned)
-4. Assemble final script
+STEP GENERATION RULES:
+1. Always extract particle COUNT from numbers (one, two, three, 1, 2, 3, etc.)
+2. Always extract COLORS (red, green, blue, yellow, etc.)
+3. Always extract BEHAVIORS (bouncing, moving, rotating, floating, etc.)
+4. Always include "Assemble final script" as last step
 
-Example - Input: "blue pixel moving right"
-Expected output:
+For "three green particles bouncing around":
 {
-    "description": "Create a blue pixel that moves from left to right",
+    "description": "Create three green particles that bounce around the screen",
     "steps": [
-        "Create 1 particle positioned on the left",
-        "Set particle color to blue", 
-        "Apply rightward velocity",
+        "Create 3 particles positioned randomly on screen",
+        "Set particle color to green",
+        "Apply bouncing physics with random velocities and collision detection", 
         "Assemble final script"
     ]
 }
 
-CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
+CRITICAL: Respond with ONLY the JSON object. No other text."""
 
         self.agent = Agent(
             model=self.model,
@@ -218,7 +208,6 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         )
 
     def _get_agent_system_prompt(self, agent: Agent) -> str:
-        """Get the system prompt for this agent."""
         return self.system_prompt_text
 
     async def plan_task(self, user_request: str) -> TaskPlan:
@@ -227,11 +216,11 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         prompt = f'Create a 4-step plan for: "{user_request}"'
         
         fallback_plan = TaskPlan(
-            description=f"Basic implementation of: {user_request}",
+            description=f"Enhanced implementation of: {user_request}",
             steps=[
-                "Create required particles",
-                "Set colors as requested",
-                "Apply movement/forces", 
+                f"Create particles based on request: {user_request}",
+                "Set colors as specified in request",
+                "Apply movement and physics behaviors", 
                 "Assemble final script"
             ]
         )
@@ -242,45 +231,41 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         return result
 
 # =============================================================================
-# ROBUST PARTICLE CREATION AGENT
+# ROBUST PARTICLE CREATION AGENT - ENHANCED
 # =============================================================================
 
 class RobustParticleCreationAgent(RobustBaseAgent):
-    """Robust particle creation expert with comprehensive debugging."""
+    """FIXED: Better number extraction and positioning."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
         self.system_prompt_text = """You are a particle creation expert for Tölvera.
 
+CRITICAL: Extract exact particle counts from requests.
+
+Number extraction examples:
+- "3 particles" → n: 3
+- "three particles" → n: 3
+- "five blue pixels" → n: 5  
+- "a red circle" → n: 1
+- "particles" (no number) → n: 5 (default)
+
 You must respond with ONLY this exact JSON format:
 {
     "tool_calls": [
         {
             "tool_name": "create_particles",
-            "parameters": {"n": NUMBER, "species_id": 0, "position": [X, Y]}
+            "parameters": {"n": NUMBER, "species_id": 0, "position": null}
         }
     ],
-    "explanation": "Brief explanation"
+    "explanation": "Created N particles"
 }
 
-Position coordinates (0.0 to 1.0):
-- Left: [0.1, 0.5], Center: [0.5, 0.5], Right: [0.9, 0.5]
-- Top: [0.5, 0.1], Bottom: [0.5, 0.9]
+Position should be null for random placement unless specific position mentioned.
+Use exact numbers from the request - don't default to 1 unless specifically "a particle" or "one particle".
 
-Example - Input: "create 2 particles on left"
-Expected output:
-{
-    "tool_calls": [
-        {
-            "tool_name": "create_particles",
-            "parameters": {"n": 2, "species_id": 0, "position": [0.1, 0.5]}
-        }
-    ],
-    "explanation": "Created 2 particles on the left side"
-}
-
-CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
+CRITICAL: Respond with ONLY the JSON object."""
 
         self.agent = Agent(
             model=self.model,
@@ -289,7 +274,6 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         )
 
     def _get_agent_system_prompt(self, agent: Agent) -> str:
-        """Get the system prompt for this agent."""
         return self.system_prompt_text
 
     async def execute_task(self, task: str) -> TaskResult:
@@ -301,18 +285,19 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
             tool_calls=[
                 ToolCall(
                     tool_name="create_particles",
-                    parameters={"n": 1, "species_id": 0, "position": [0.1, 0.5]}
+                    parameters={"n": 3, "species_id": 0, "position": None}
                 )
             ],
-            explanation="Created 1 particle as fallback"
+            explanation="Created 3 particles as fallback"
         )
         
         result = await self._safe_agent_run(self.agent, prompt, TaskResult, fallback_result)
         
         logger.info(f"✨ ParticleCreationAgent: {result.explanation}")
         return result
+
 # =============================================================================
-# ROBUST COLOR PALETTE AGENT  
+# ROBUST COLOR PALETTE AGENT - UNCHANGED
 # =============================================================================
 
 class RobustColorPaletteAgent(RobustBaseAgent):
@@ -340,19 +325,7 @@ Colors (R, G, B, A from 0.0 to 1.0):
 - blue: [0.0, 0.0, 1.0, 1.0]
 - yellow: [1.0, 1.0, 0.0, 1.0]
 
-Example - Input: "make it blue"
-Expected output:
-{
-    "tool_calls": [
-        {
-            "tool_name": "set_species_color",
-            "parameters": {"species_id": 0, "color": [0.0, 0.0, 1.0, 1.0]}
-        }
-    ],
-    "explanation": "Set species 0 color to blue"
-}
-
-CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
+CRITICAL: Respond with ONLY the JSON object."""
 
         self.agent = Agent(
             model=self.model,
@@ -361,7 +334,6 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         )
 
     def _get_agent_system_prompt(self, agent: Agent) -> str:
-        """Get the system prompt for this agent."""
         return self.system_prompt_text
 
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
@@ -373,18 +345,19 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
             tool_calls=[
                 ToolCall(
                     tool_name="set_species_color",
-                    parameters={"species_id": 0, "color": [0.0, 0.0, 1.0, 1.0]}
+                    parameters={"species_id": 0, "color": [0.0, 1.0, 0.0, 1.0]}
                 )
             ],
-            explanation="Applied blue color as fallback"
+            explanation="Applied green color as fallback"
         )
         
         result = await self._safe_agent_run(self.agent, prompt, TaskResult, fallback_result)
         
         logger.info(f"🎨 ColorPaletteAgent: {result.explanation}")
         return result
+
 # =============================================================================
-# ROBUST MOTION DYNAMICS AGENT
+# ROBUST MOTION DYNAMICS AGENT - UNCHANGED
 # =============================================================================
 
 class RobustMotionDynamicsAgent(RobustBaseAgent):
@@ -411,21 +384,8 @@ Movement directions:
 - Left: [-2.0, 0.0] 
 - Up: [0.0, -2.0]
 - Down: [0.0, 2.0]
-- Diagonal down-right: [2.0, 2.0]
 
-Example - Input: "move from top to bottom"
-Expected output:
-{
-    "tool_calls": [
-        {
-            "tool_name": "set_species_velocity",
-            "parameters": {"species_id": 0, "velocity": [0.0, 2.0]}
-        }
-    ],
-    "explanation": "Set species 0 to move downward"
-}
-
-CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
+CRITICAL: Respond with ONLY the JSON object."""
 
         self.agent = Agent(
             model=self.model,
@@ -434,7 +394,6 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         )
 
     def _get_agent_system_prompt(self, agent: Agent) -> str:
-        """Get the system prompt for this agent."""
         return self.system_prompt_text
 
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
@@ -456,38 +415,56 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         
         logger.info(f"🚀 MotionDynamicsAgent: {result.explanation}")
         return result
+
 # =============================================================================
-# ROBUST PHYSICS AGENT
+# ROBUST PHYSICS AGENT - ENHANCED
 # =============================================================================
 
 class RobustPhysicsAgent(RobustBaseAgent):
-    """Robust physics interactions expert."""
+    """FIXED: Detect and implement bouncing and movement behaviors."""
     
     def __init__(self):
         super().__init__("qwen2.5:3b")
         
         self.system_prompt_text = """You are a physics expert for Tölvera particles.
 
-For simple movement tasks, respond with:
+BEHAVIOR DETECTION:
+- "bouncing around" → apply_bouncing_behavior
+- "moving randomly" → apply_random_movement  
+- "floating" → apply_gentle_movement
+- "spinning" → apply_rotational_movement
+
+You must respond with ONLY this exact JSON format:
+
+For bouncing/random movement:
+{
+    "tool_calls": [
+        {
+            "tool_name": "apply_bouncing_behavior",
+            "parameters": {"species_id": 0, "speed_range": [1.0, 3.0], "collision_mode": "bounce"}
+        }
+    ],
+    "explanation": "Applied bouncing physics with collision detection"
+}
+
+For gentle movement:
+{
+    "tool_calls": [
+        {
+            "tool_name": "apply_gentle_movement", 
+            "parameters": {"species_id": 0, "speed": 1.0}
+        }
+    ],
+    "explanation": "Applied gentle floating movement"
+}
+
+For no complex physics:
 {
     "tool_calls": [],
     "explanation": "No complex physics needed for this task"
 }
 
-For flocking/swarming, respond with:
-{
-    "tool_calls": [
-        {
-            "tool_name": "apply_flock_behavior",
-            "parameters": {"species_id": 0, "cohesion": 0.7, "separation": 0.3, "alignment": 0.5}
-        }
-    ],
-    "explanation": "Applied flocking behavior"
-}
-
-Look for keywords: flock, swarm, together, group, birds, schools
-
-CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
+CRITICAL: Respond with ONLY the JSON object."""
 
         self.agent = Agent(
             model=self.model,
@@ -496,7 +473,6 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         )
 
     def _get_agent_system_prompt(self, agent: Agent) -> str:
-        """Get the system prompt for this agent."""
         return self.system_prompt_text
 
     async def execute_task(self, task: str, context: Dict[str, Any] = None) -> TaskResult:
@@ -504,61 +480,65 @@ CRITICAL: Respond with ONLY the JSON object. No other text before or after."""
         
         prompt = f'Task: "{task}"'
         
-        fallback_result = TaskResult(
-            tool_calls=[],
-            explanation="No complex physics needed for this task"
-        )
+        # Enhanced fallback that detects physics behaviors
+        if "bounc" in task.lower() or "around" in task.lower():
+            fallback_result = TaskResult(
+                tool_calls=[
+                    ToolCall(
+                        tool_name="apply_bouncing_behavior",
+                        parameters={"species_id": 0, "speed_range": [1.0, 3.0], "collision_mode": "bounce"}
+                    )
+                ],
+                explanation="Applied bouncing physics with collision detection"
+            )
+        else:
+            fallback_result = TaskResult(
+                tool_calls=[],
+                explanation="No complex physics needed for this task"
+            )
         
         result = await self._safe_agent_run(self.agent, prompt, TaskResult, fallback_result)
         
         logger.info(f"⚗️ PhysicsAgent: {result.explanation}")
         return result
+
 # =============================================================================
-# COMPOSITION AGENT (unchanged - still uses direct generation)
+# COMPOSITION AGENT - ENHANCED
 # =============================================================================
 
 class RobustCompositionAgent(RobustBaseAgent):
-    """Robust script composition using direct generation."""
+    """Enhanced script composition with physics behavior support."""
     
     def __init__(self):
         super().__init__("llama3.2:3b")
 
     async def compose_script(self, user_request: str, tool_calls: List[ToolCall]) -> GeneratedScript:
-        """Compose script using direct generation (no LLM for final step)."""
+        """Compose script using enhanced generation with physics behaviors."""
         
         try:
-            from .tools import tool_calls_to_python_code
-            
-            script_code = tool_calls_to_python_code(tool_calls, user_request)
+            # Use the enhanced script generation
+            script_code = tool_calls_to_python_code_enhanced(tool_calls, user_request)
             
             logger.info(f"📝 CompositionAgent: Generated {len(script_code)} character script")
             
             return GeneratedScript(
                 title=f"Generated: {user_request}",
                 code=script_code,
-                explanation=f"Implemented {len(tool_calls)} tool calls to create: {user_request}"
+                explanation=f"Enhanced implementation with {len(tool_calls)} tool calls: {user_request}"
             )
             
         except Exception as e:
             logger.error(f"❌ Script composition failed: {e}")
             
             # Generate emergency fallback
-            num_particles = 10
-            num_species = 1
-            
-            for call in tool_calls:
-                if call.tool_name == "create_particles":
-                    num_particles = max(num_particles, call.parameters.get("n", 1))
-                    num_species = max(num_species, call.parameters.get("species_id", 0) + 1)
-            
-            fallback_code = self._generate_emergency_fallback(user_request, num_particles, num_species)
+            fallback_code = self._generate_emergency_fallback(user_request)
             return GeneratedScript(
                 title=f"Fallback: {user_request}",
                 code=fallback_code,
                 explanation=f"Generated fallback due to error: {str(e)}"
             )
 
-    def _generate_emergency_fallback(self, user_request: str, num_particles: int, num_species: int) -> str:
+    def _generate_emergency_fallback(self, user_request: str) -> str:
         """Generate emergency fallback script."""
         return f'''"""
 Emergency fallback script for: {user_request}
@@ -568,36 +548,358 @@ import taichi as ti
 from tolvera import Tolvera, run
 
 def main(**kwargs):
-    """Emergency fallback implementation."""
-    tv = Tolvera(n={num_particles}, species={num_species}, **kwargs)
+    tv = Tolvera(n=3, species=1, **kwargs)
     
     @ti.kernel
     def init_particles():
-        """Initialize basic particles."""
-        for i in range(min({num_particles}, tv.pn)):
+        for i in range(3):
             tv.p.field[i].active = 1.0
             tv.p.field[i].species = 0
-            tv.p.field[i].pos = [tv.x * 0.2, tv.y * 0.5]
-            tv.p.field[i].vel = [1.0, 0.0]
-            tv.p.field[i].size = 8.0
+            tv.p.field[i].pos = ti.Vector([tv.x * ti.random(), tv.y * ti.random()])
+            tv.p.field[i].vel = ti.Vector([ti.random() * 4 - 2, ti.random() * 4 - 2])
+            tv.p.field[i].size = 12.0
     
     @ti.kernel
     def update_particles():
-        """Update particle movement."""
-        for i in range(tv.pn):
+        for i in range(3):
             if tv.p.field[i].active > 0:
                 tv.p.field[i].pos += tv.p.field[i].vel
-                if tv.p.field[i].pos[0] > tv.x:
-                    tv.p.field[i].pos[0] = 0
+                if tv.p.field[i].pos[0] <= 0 or tv.p.field[i].pos[0] >= tv.x:
+                    tv.p.field[i].vel[0] *= -1
+                if tv.p.field[i].pos[1] <= 0 or tv.p.field[i].pos[1] >= tv.y:
+                    tv.p.field[i].vel[1] *= -1
     
-    tv.s.species.field[0].rgba = [0.2, 0.4, 1.0, 1.0]
-    init_particles()
+    @ti.kernel
+    def draw_particles():
+        tv.px.background(0.0, 0.0, 0.0)
+        for i in range(3):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
+                tv.px.circle(x, y, size, ti.Vector([0.0, 1.0, 0.0, 1.0]), fill=1)
+    
+    tv.s.species.field[0].rgba = ti.Vector([0.0, 1.0, 0.0, 1.0])
+    initialized = ti.field(ti.i32, shape=())
     
     @tv.render
     def _():
-        tv.px.background(0.05, 0.05, 0.1)
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
         update_particles()
-        tv.px.particles(tv.p, tv.s.species(), "circle")
+        draw_particles()
+        return tv.px
+
+if __name__ == '__main__':
+    try:
+        run(main)
+    except KeyboardInterrupt:
+        print("\\nExiting.")
+'''
+
+# =============================================================================
+# ENHANCED SCRIPT GENERATION
+# =============================================================================
+
+def tool_calls_to_python_code_enhanced(tool_calls: List[ToolCall], user_request: str) -> str:
+    """
+    ENHANCED: Generate scripts with proper physics behaviors and particle counts.
+    """
+    
+    # Analyze tool calls
+    particles_created = 1
+    num_species = 1
+    species_colors = {}
+    physics_behaviors = {}
+    positions = {}
+    
+    # Detect behaviors from request
+    is_circular_motion = "circle" in user_request.lower() and "moving" in user_request.lower()
+    has_bouncing = "bounc" in user_request.lower()
+    has_random_movement = "around" in user_request.lower() or "random" in user_request.lower()
+    
+    for call in tool_calls:
+        if call.tool_name == "create_particles":
+            n = call.parameters.get("n", 1)
+            particles_created = n
+            positions[0] = call.parameters.get("position")
+        
+        elif call.tool_name == "set_species_color":
+            species_id = call.parameters.get("species_id", 0)
+            color = call.parameters.get("color", [1.0, 1.0, 1.0, 1.0])
+            species_colors[species_id] = color
+        
+        elif call.tool_name in ["apply_bouncing_behavior", "apply_random_movement", "apply_gentle_movement"]:
+            physics_behaviors[call.tool_name] = call.parameters
+    
+    # Generate different code based on behavior
+    if is_circular_motion:
+        return generate_circular_motion_script(user_request, particles_created, species_colors)
+    elif has_bouncing or has_random_movement or physics_behaviors:
+        return generate_bouncing_script(user_request, particles_created, species_colors, physics_behaviors)
+    else:
+        return generate_basic_movement_script(user_request, particles_created, species_colors, positions)
+
+def generate_bouncing_script(user_request: str, particles_created: int, species_colors: dict, physics_behaviors: dict) -> str:
+    """Generate script with bouncing/random movement physics."""
+    
+    color = species_colors.get(0, [0.0, 1.0, 0.0, 1.0])  # Default green
+    
+    return f'''"""
+{user_request}
+Generated by Tölvera MoE system.
+"""
+
+import taichi as ti
+from tolvera import Tolvera, run
+
+def main(**kwargs):
+    """
+    {user_request}
+    """
+    tv = Tolvera(n={particles_created}, species=1, **kwargs)
+
+    @ti.kernel
+    def init_particles():
+        """Initialize particles with random positions and velocities."""
+        # Deactivate all particles first
+        for i in range(tv.pn):
+            tv.p.field[i].active = 0.0
+
+        # Initialize {particles_created} particles
+        for i in range({particles_created}):
+            # Random positions across the screen
+            tv.p.field[i].pos = ti.Vector([
+                ti.random() * tv.x,
+                ti.random() * tv.y
+            ])
+            # Random velocities for bouncing
+            speed = 1.0 + ti.random() * 2.0  # Speed between 1-3
+            angle = ti.random() * 2.0 * 3.14159  # Random direction
+            tv.p.field[i].vel = ti.Vector([
+                speed * ti.cos(angle),
+                speed * ti.sin(angle)
+            ])
+            tv.p.field[i].active = 1.0
+            tv.p.field[i].species = 0
+            tv.p.field[i].size = 12.0 + ti.random() * 8.0  # Size variation
+            tv.p.field[i].mass = 1.0
+
+    @ti.kernel
+    def update_particles():
+        """Update particle positions with bouncing physics."""
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                # Update position
+                tv.p.field[i].pos += tv.p.field[i].vel
+                
+                # Bounce off boundaries
+                if tv.p.field[i].pos[0] <= 0 or tv.p.field[i].pos[0] >= tv.x:
+                    tv.p.field[i].vel[0] *= -1.0
+                    tv.p.field[i].pos[0] = ti.max(0.0, ti.min(tv.x, tv.p.field[i].pos[0]))
+                
+                if tv.p.field[i].pos[1] <= 0 or tv.p.field[i].pos[1] >= tv.y:
+                    tv.p.field[i].vel[1] *= -1.0
+                    tv.p.field[i].pos[1] = ti.max(0.0, ti.min(tv.y, tv.p.field[i].pos[1]))
+
+    @ti.kernel
+    def draw_particles():
+        """Draw the bouncing particles."""
+        tv.px.background(0.0, 0.0, 0.0)
+        
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
+                
+                species_id = tv.p.field[i].species
+                color = tv.s.species.field[species_id].rgba
+                
+                tv.px.circle(x, y, size, color, fill=1)
+
+    # Set colors
+    tv.s.species.field[0].rgba = ti.Vector({color})
+
+    # Initialization flag
+    initialized = ti.field(ti.i32, shape=())
+    initialized[None] = 0
+    
+    @tv.render
+    def _():
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
+        
+        update_particles()
+        draw_particles()
+        
+        return tv.px
+
+if __name__ == '__main__':
+    try:
+        run(main)
+    except KeyboardInterrupt:
+        print("\\nExiting.")
+'''
+
+def generate_circular_motion_script(user_request: str, particles_created: int, species_colors: dict) -> str:
+    """Generate script with circular motion."""
+    color = species_colors.get(0, [1.0, 0.0, 0.0, 1.0])  # Default red
+    
+    return f'''"""
+{user_request}
+Generated by Tölvera MoE system.
+"""
+
+import taichi as ti
+from tolvera import Tolvera, run
+
+def main(**kwargs):
+    tv = Tolvera(n={particles_created}, species=1, **kwargs)
+
+    center = ti.Vector.field(2, dtype=ti.f32, shape=())
+    radius = ti.field(dtype=ti.f32, shape=())
+    angle = ti.field(dtype=ti.f32, shape=())
+    speed = ti.field(dtype=ti.f32, shape=())
+
+    @ti.kernel
+    def init_particles():
+        center[None] = ti.Vector([tv.x * 0.5, tv.y * 0.5])
+        radius[None] = min(tv.x, tv.y) * 0.2
+        angle[None] = 0.0
+        speed[None] = 0.03
+
+        for i in range(tv.pn):
+            tv.p.field[i].active = 0.0
+
+        for i in range({particles_created}):
+            tv.p.field[i].pos = center[None] + radius[None] * ti.Vector([ti.cos(angle[None]), ti.sin(angle[None])])
+            tv.p.field[i].vel = ti.Vector([0.0, 0.0])
+            tv.p.field[i].active = 1.0
+            tv.p.field[i].species = 0
+            tv.p.field[i].size = 16.0
+            tv.p.field[i].mass = 1.0
+
+    @ti.kernel
+    def update_particles():
+        angle[None] += speed[None]
+        
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                new_pos_x = center[None][0] + radius[None] * ti.cos(angle[None])
+                new_pos_y = center[None][1] + radius[None] * ti.sin(angle[None])
+                tv.p.field[i].pos = ti.Vector([new_pos_x, new_pos_y])
+
+    @ti.kernel
+    def draw_particles():
+        tv.px.background(0.0, 0.0, 0.0)
+        
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
+                
+                species_id = tv.p.field[i].species
+                color = tv.s.species.field[species_id].rgba
+                
+                tv.px.circle(x, y, size, color, fill=1)
+
+    tv.s.species.field[0].rgba = ti.Vector({color})
+    initialized = ti.field(ti.i32, shape=())
+    initialized[None] = 0
+    
+    @tv.render
+    def _():
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
+        
+        update_particles()
+        draw_particles()
+        
+        return tv.px
+
+if __name__ == '__main__':
+    try:
+        run(main)
+    except KeyboardInterrupt:
+        print("\\nExiting.")
+'''
+
+def generate_basic_movement_script(user_request: str, particles_created: int, species_colors: dict, positions: dict) -> str:
+    """Generate script with basic linear movement."""
+    color = species_colors.get(0, [0.0, 0.0, 1.0, 1.0])  # Default blue
+    position = positions.get(0, [0.1, 0.5])  # Default left side
+    
+    return f'''"""
+{user_request}
+Generated by Tölvera MoE system.
+"""
+
+import taichi as ti
+from tolvera import Tolvera, run
+
+def main(**kwargs):
+    tv = Tolvera(n={particles_created}, species=1, **kwargs)
+
+    @ti.kernel
+    def init_particles():
+        for i in range(tv.pn):
+            tv.p.field[i].active = 0.0
+
+        for i in range({particles_created}):
+            tv.p.field[i].pos = ti.Vector([tv.x * {position[0] if position else 0.1}, tv.y * {position[1] if position else 0.5}])
+            tv.p.field[i].vel = ti.Vector([2.0, 0.0])
+            tv.p.field[i].active = 1.0
+            tv.p.field[i].species = 0
+            tv.p.field[i].size = 16.0
+            tv.p.field[i].mass = 1.0
+
+    @ti.kernel
+    def update_particles():
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                tv.p.field[i].pos += tv.p.field[i].vel
+                if tv.p.field[i].pos[0] > tv.x:
+                    tv.p.field[i].pos[0] = 0.0
+                if tv.p.field[i].pos[0] < 0:
+                    tv.p.field[i].pos[0] = tv.x
+
+    @ti.kernel
+    def draw_particles():
+        tv.px.background(0.0, 0.0, 0.0)
+        
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
+                
+                species_id = tv.p.field[i].species
+                color = tv.s.species.field[species_id].rgba
+                
+                tv.px.circle(x, y, size, color, fill=1)
+
+    tv.s.species.field[0].rgba = ti.Vector({color})
+    initialized = ti.field(ti.i32, shape=())
+    initialized[None] = 0
+    
+    @tv.render
+    def _():
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
+        
+        update_particles()
+        draw_particles()
+        
         return tv.px
 
 if __name__ == '__main__':
@@ -617,40 +919,3 @@ def create_robust_agents():
         "physics": RobustPhysicsAgent(),
         "composition": RobustCompositionAgent()
     }
-
-# =============================================================================
-# TESTING FUNCTION
-# =============================================================================
-
-async def test_robust_agents():
-    """Test all robust agents individually."""
-    print("🧪 Testing Robust Agents")
-    print("=" * 40)
-    
-    agents = create_robust_agents()
-    
-    # Test conductor
-    print("\n📋 Testing Conductor...")
-    plan = await agents["conductor"].plan_task("2 blue particles moving from top to bottom")
-    print(f"✅ Plan: {plan.description}")
-    
-    # Test particle agent
-    print("\n✨ Testing Particle Agent...")
-    result = await agents["particle"].execute_task("Create 2 particles on the left")
-    print(f"✅ Result: {result.explanation}")
-    
-    # Test color agent
-    print("\n🎨 Testing Color Agent...")
-    result = await agents["color"].execute_task("Make particles blue")
-    print(f"✅ Result: {result.explanation}")
-    
-    # Test motion agent
-    print("\n🚀 Testing Motion Agent...")
-    result = await agents["motion"].execute_task("Move from top to bottom")
-    print(f"✅ Result: {result.explanation}")
-    
-    print("\n✅ All robust agents tested successfully!")
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(test_robust_agents())

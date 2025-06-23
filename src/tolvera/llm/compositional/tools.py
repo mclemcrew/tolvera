@@ -216,15 +216,27 @@ if __name__ == '__main__':
 # SCRIPT GENERATION HELPERS
 # =============================================================================
 
+# src/tolvera/llm/compositional/tools.py - FIXED VERSION
+
+# src/tolvera/llm/compositional/tools.py - CORRECTED VERSION
+
+# src/tolvera/llm/compositional/tools.py - FINAL CORRECTED VERSION
+
 def tool_calls_to_python_code(tool_calls: List[ToolCall], user_request: str) -> str:
-    """Convert tool calls directly to Python code without JSON."""
+    """
+    Generate Tölvera scripts that match the exact patterns from working examples.
+    FINAL FIX: Proper particle management, correct positioning, clean rendering.
+    """
     
-    # Analyze tool calls to determine parameters
-    num_particles = 10
+    # Analyze tool calls
+    particles_created = 1  # Default to 1
     num_species = 1
-    init_lines = []
-    update_lines = []
-    has_movement = False
+    species_colors = {}
+    species_velocities = {}
+    positions = {}
+    
+    # Detect circular motion from request
+    is_circular_motion = "circle" in user_request.lower() and "moving" in user_request.lower()
     
     for call in tool_calls:
         if call.tool_name == "create_particles":
@@ -232,87 +244,27 @@ def tool_calls_to_python_code(tool_calls: List[ToolCall], user_request: str) -> 
             species_id = call.parameters.get("species_id", 0)
             position = call.parameters.get("position")
             
-            num_particles = max(num_particles, n)
+            particles_created = n  # Use exact count
             num_species = max(num_species, species_id + 1)
-            
-            if position:
-                init_lines.extend([
-                    f"        # Create {n} particles at position {position}",
-                    f"        for i in range({n}):",
-                    f"            tv.p.field[i].active = 1.0",
-                    f"            tv.p.field[i].species = {species_id}",
-                    f"            tv.p.field[i].pos = [tv.x * {position[0]}, tv.y * {position[1]}]",
-                    f"            tv.p.field[i].vel = [0.0, 0.0]",
-                    f"            tv.p.field[i].size = 8.0",
-                    f"            tv.p.field[i].mass = 1.0"
-                ])
-            else:
-                init_lines.extend([
-                    f"        # Create {n} particles randomly",
-                    f"        for i in range({n}):",
-                    f"            tv.p.field[i].active = 1.0",
-                    f"            tv.p.field[i].species = {species_id}",
-                    f"            tv.p.field[i].pos = [tv.x * ti.random(), tv.y * ti.random()]",
-                    f"            tv.p.field[i].vel = [0.0, 0.0]",
-                    f"            tv.p.field[i].size = 8.0",
-                    f"            tv.p.field[i].mass = 1.0"
-                ])
+            positions[species_id] = position
         
         elif call.tool_name == "set_species_color":
             species_id = call.parameters.get("species_id", 0)
             color = call.parameters.get("color", [1.0, 1.0, 1.0, 1.0])
-            init_lines.extend([
-                f"        # Set species {species_id} color",
-                f"        tv.s.species.field[{species_id}].rgba = {color}"
-            ])
+            species_colors[species_id] = color
         
         elif call.tool_name == "set_species_velocity":
             species_id = call.parameters.get("species_id", 0)
             velocity = call.parameters.get("velocity", [0.0, 0.0])
-            has_movement = True
-            init_lines.extend([
-                f"        # Set species {species_id} velocity",
-                f"        for i in range(tv.pn):",
-                f"            if tv.p.field[i].species == {species_id}:",
-                f"                tv.p.field[i].vel = {velocity}"
-            ])
+            species_velocities[species_id] = velocity
+    
+    # Generate code based on motion type
+    if is_circular_motion:
+        # Circular motion implementation
+        position = positions.get(0, [0.5, 0.5])  # Default to center
+        color = species_colors.get(0, [1.0, 0.0, 0.0, 1.0])  # Default red
         
-        elif call.tool_name == "apply_varying_speeds":
-            species_id = call.parameters.get("species_id", 0)
-            base_speed = call.parameters.get("base_speed", 2.0)
-            variation = call.parameters.get("variation", 1.0)
-            has_movement = True
-            init_lines.extend([
-                f"        # Apply varying speeds to species {species_id}",
-                f"        for i in range(tv.pn):",
-                f"            if tv.p.field[i].species == {species_id}:",
-                f"                speed_factor = {base_speed} + (ti.random() - 0.5) * {variation}",
-                f"                tv.p.field[i].speed = speed_factor"
-            ])
-    
-    # Add movement code if needed
-    if has_movement:
-        update_lines.extend([
-            "        # Update particle movement",
-            "        for i in range(tv.pn):",
-            "            if tv.p.field[i].active > 0:",
-            "                tv.p.field[i].pos += tv.p.field[i].vel",
-            "                # Boundary wrapping",
-            "                if tv.p.field[i].pos[0] > tv.x:",
-            "                    tv.p.field[i].pos[0] = 0",
-            "                if tv.p.field[i].pos[0] < 0:",
-            "                    tv.p.field[i].pos[0] = tv.x",
-            "                if tv.p.field[i].pos[1] > tv.y:",
-            "                    tv.p.field[i].pos[1] = 0",
-            "                if tv.p.field[i].pos[1] < 0:",
-            "                    tv.p.field[i].pos[1] = tv.y"
-        ])
-    
-    # Generate complete script
-    init_code = "\n".join(init_lines) if init_lines else "        pass"
-    update_code = "\n".join(update_lines) if update_lines else "        pass"
-    
-    script = f'''"""
+        script = f'''"""
 {user_request}
 Generated by Tölvera MoE system.
 """
@@ -324,31 +276,199 @@ def main(**kwargs):
     """
     {user_request}
     """
-    tv = Tolvera(n={num_particles}, species={num_species}, **kwargs)
-    
+    tv = Tolvera(n={particles_created}, species={num_species}, **kwargs)
+
+    # Fields for circular motion
+    center = ti.Vector.field(2, dtype=ti.f32, shape=())
+    radius = ti.field(dtype=ti.f32, shape=())
+    angle = ti.field(dtype=ti.f32, shape=())
+    speed = ti.field(dtype=ti.f32, shape=())
+
     @ti.kernel
-    def init_simulation():
-        """Initialize the simulation based on user request."""
-{init_code}
-    
+    def init_particles():
+        """Initialize particles following the working examples pattern."""
+        # FIXED: Proper center positioning
+        center[None] = ti.Vector([tv.x * {position[0]}, tv.y * {position[1]}])
+        radius[None] = min(tv.x, tv.y) * 0.2  # Reasonable radius
+        angle[None] = 0.0
+        speed[None] = 0.03
+
+        # FIXED: Deactivate ALL particles first (like working examples)
+        for i in range(tv.pn):
+            tv.p.field[i].active = 0.0
+
+        # FIXED: Only activate and setup the particles we actually want
+        for i in range({particles_created}):
+            tv.p.field[i].pos = center[None] + radius[None] * ti.Vector([ti.cos(angle[None]), ti.sin(angle[None])])
+            tv.p.field[i].vel = ti.Vector([0.0, 0.0])
+            tv.p.field[i].active = 1.0
+            tv.p.field[i].species = 0
+            tv.p.field[i].size = 16.0
+            tv.p.field[i].mass = 1.0
+
     @ti.kernel
-    def update_simulation():
-        """Update simulation each frame."""
-{update_code}
-    
-    # Initialize the simulation
-    init_simulation()
+    def update_particles():
+        """Update particle positions for circular motion."""
+        angle[None] += speed[None]
+        
+        # FIXED: Only update the particles we created
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                new_pos_x = center[None][0] + radius[None] * ti.cos(angle[None])
+                new_pos_y = center[None][1] + radius[None] * ti.sin(angle[None])
+                tv.p.field[i].pos = ti.Vector([new_pos_x, new_pos_y])
+
+    @ti.kernel
+    def draw_particles():
+        """Draw only the particles we created."""
+        tv.px.background(0.0, 0.0, 0.0)
+        
+        # FIXED: Only draw the particles we actually created
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
+                
+                species_id = tv.p.field[i].species
+                color = tv.s.species.field[species_id].rgba
+                
+                tv.px.circle(x, y, size, color, fill=1)
+
+    # Set colors in Python scope
+    tv.s.species.field[0].rgba = ti.Vector({color})
+
+    # Initialization flag
+    initialized = ti.field(ti.i32, shape=())
+    initialized[None] = 0
     
     @tv.render
     def _():
-        # Clear background
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
+        
+        update_particles()
+        draw_particles()
+        
+        return tv.px
+
+if __name__ == '__main__':
+    try:
+        run(main)
+    except KeyboardInterrupt:
+        print("\\nExiting.")
+'''
+    
+    else:
+        # Linear motion implementation
+        init_lines = []
+        update_lines = []
+        
+        # Build initialization for each particle
+        init_lines.append("        # FIXED: Deactivate ALL particles first")
+        init_lines.append("        for i in range(tv.pn):")
+        init_lines.append("            tv.p.field[i].active = 0.0")
+        init_lines.append("")
+        
+        for i in range(particles_created):
+            species_id = 0  # Default species
+            position = positions.get(species_id, [0.1, 0.5])
+            velocity = species_velocities.get(species_id, [2.0, 0.0])
+            
+            init_lines.extend([
+                f"        # Initialize particle {i}",
+                f"        tv.p.field[{i}].pos = ti.Vector([tv.x * {position[0]}, tv.y * {position[1]}])",
+                f"        tv.p.field[{i}].vel = ti.Vector({velocity})",
+                f"        tv.p.field[{i}].active = 1.0",
+                f"        tv.p.field[{i}].species = {species_id}",
+                f"        tv.p.field[{i}].size = 16.0",
+                f"        tv.p.field[{i}].mass = 1.0",
+                ""
+            ])
+        
+        # Add movement update if velocities exist
+        if species_velocities:
+            update_lines.extend([
+                f"        # Update movement for {particles_created} particles",
+                f"        for i in range({particles_created}):",
+                "            if tv.p.field[i].active > 0:",
+                "                tv.p.field[i].pos += tv.p.field[i].vel",
+                "                # Boundary wrapping",
+                "                if tv.p.field[i].pos[0] > tv.x:",
+                "                    tv.p.field[i].pos[0] = 0.0",
+                "                if tv.p.field[i].pos[0] < 0:",
+                "                    tv.p.field[i].pos[0] = tv.x",
+                "                if tv.p.field[i].pos[1] > tv.y:",
+                "                    tv.p.field[i].pos[1] = 0.0",
+                "                if tv.p.field[i].pos[1] < 0:",
+                "                    tv.p.field[i].pos[1] = tv.y"
+            ])
+        
+        init_code = "\n".join(init_lines)
+        update_code = "\n".join(update_lines) if update_lines else "        pass"
+        
+        # Color setup
+        color = species_colors.get(0, [0.0, 0.0, 1.0, 1.0])  # Default blue
+        
+        script = f'''"""
+{user_request}
+Generated by Tölvera MoE system.
+"""
+
+import taichi as ti
+from tolvera import Tolvera, run
+
+def main(**kwargs):
+    """
+    {user_request}
+    """
+    tv = Tolvera(n={particles_created}, species={num_species}, **kwargs)
+
+    @ti.kernel
+    def init_particles():
+        """Initialize particles following the working examples pattern."""
+{init_code}
+
+    @ti.kernel
+    def update_particles():
+        """Update particle positions."""
+{update_code}
+
+    @ti.kernel
+    def draw_particles():
+        """Draw only the particles we created."""
         tv.px.background(0.0, 0.0, 0.0)
         
-        # Update simulation
-        update_simulation()
+        # FIXED: Only draw the particles we actually created
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
+                
+                species_id = tv.p.field[i].species
+                color = tv.s.species.field[species_id].rgba
+                
+                tv.px.circle(x, y, size, color, fill=1)
+
+    # Set colors in Python scope
+    tv.s.species.field[0].rgba = ti.Vector({color})
+
+    # Initialization flag
+    initialized = ti.field(ti.i32, shape=())
+    initialized[None] = 0
+    
+    @tv.render
+    def _():
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
         
-        # Render particles
-        tv.px.particles(tv.p, tv.s.species(), "circle")
+        update_particles()
+        draw_particles()
         
         return tv.px
 
@@ -360,7 +480,6 @@ if __name__ == '__main__':
 '''
     
     return script
-
 # =============================================================================
 # EXPERT AGENT TOOL DESCRIPTIONS
 # =============================================================================

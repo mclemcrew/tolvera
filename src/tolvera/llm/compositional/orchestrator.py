@@ -1,13 +1,16 @@
 # src/tolvera/llm/compositional/orchestrator.py
 """
 Fixed orchestrator with proper agent routing and better error handling.
+COMPLETELY ENHANCED VERSION with number extraction and physics behavior detection.
 """
 
 import logging
+import re
 from typing import List, Dict, Any
 from .agents import (
     RobustConductorAgent, RobustParticleCreationAgent, RobustColorPaletteAgent,
-    RobustMotionDynamicsAgent, RobustPhysicsAgent, RobustCompositionAgent
+    RobustMotionDynamicsAgent, RobustPhysicsAgent, RobustCompositionAgent,
+    tool_calls_to_python_code_enhanced
 )
 from .tools import GeneratedScript, ToolCall
 
@@ -15,7 +18,8 @@ logger = logging.getLogger(__name__)
 
 class RobustCodeGenerationOrchestrator:
     """
-    Fixed orchestrator with proper agent routing and enhanced error handling.
+    COMPLETELY ENHANCED orchestrator with proper agent routing, number extraction, 
+    and comprehensive fallback generation.
     """
     
     def __init__(self):
@@ -36,7 +40,7 @@ class RobustCodeGenerationOrchestrator:
             raise
 
     async def generate_script(self, user_request: str) -> GeneratedScript:
-        """Generate a complete Tölvera script with proper agent routing."""
+        """Generate a complete Tölvera script with enhanced agent routing and fallbacks."""
         
         try:
             logger.info(f"🎯 Processing request: {user_request}")
@@ -46,7 +50,7 @@ class RobustCodeGenerationOrchestrator:
             plan = await self.conductor.plan_task(user_request)
             logger.info(f"📋 Plan created: {plan.description}")
             
-            # Step 2: Execute plan through expert agents WITH PROPER ROUTING
+            # Step 2: Execute plan through expert agents WITH ENHANCED ROUTING
             logger.info("⚡ Step 2: Executing plan through expert agents...")
             all_tool_calls = []
             context = {}
@@ -54,9 +58,8 @@ class RobustCodeGenerationOrchestrator:
             for i, step in enumerate(plan.steps):
                 logger.info(f"⚡ Step {i+1}/{len(plan.steps)}: {step}")
                 
-                # FIXED: Route to appropriate expert based on step content
+                # ENHANCED: Route to appropriate expert based on step content
                 try:
-                    # Determine the correct agent for this step
                     agent_type = self._determine_agent_type(step)
                     
                     if agent_type == "particle":
@@ -90,10 +93,10 @@ class RobustCodeGenerationOrchestrator:
                     logger.warning(f"⚠️ Step {i+1} failed: {e}, continuing with fallbacks")
                     # Continue with other steps even if one fails
             
-            # Step 3: Generate fallback tool calls if we don't have any
+            # Step 3: Generate ENHANCED fallback tool calls if we don't have any
             if not all_tool_calls:
-                logger.warning("⚠️ No tool calls generated, creating fallbacks based on request")
-                all_tool_calls = self._generate_fallback_tool_calls(user_request)
+                logger.warning("⚠️ No tool calls generated, creating enhanced fallbacks based on request")
+                all_tool_calls = self._generate_enhanced_fallback_tool_calls(user_request)
             
             # Step 4: CompositionAgent assembles final script
             logger.info("📝 Step 3: Assembling final script with RobustCompositionAgent...")
@@ -118,160 +121,207 @@ class RobustCodeGenerationOrchestrator:
 
     def _determine_agent_type(self, step: str) -> str:
         """
-        FIXED: Properly determine which agent should handle each step.
-        This is the key fix for routing issues.
+        ENHANCED: Much better agent routing with comprehensive keyword detection.
         """
         step_lower = step.lower()
         
-        # Particle creation keywords (highest priority)
-        particle_keywords = [
-            "create", "spawn", "generate", "add", "make particles", "make particle",
-            "positioned", "position", "place", "put particles"
-        ]
-        
-        # Color keywords 
-        color_keywords = [
-            "color", "colour", "blue", "red", "green", "yellow", "white", "black",
-            "cyan", "magenta", "orange", "purple", "pink", "set color", "apply color",
-            "paint", "tint", "hue"
+        # Physics keywords (check first - most specific)
+        physics_keywords = [
+            "bounc", "collision", "physics", "gravity", "force", "attract", "repel",
+            "flock", "swarm", "around", "random", "chaotic", "turbulent",
+            "float", "drift", "wander", "spiral", "orbit", "oscillat"
         ]
         
         # Motion keywords
         motion_keywords = [
-            "move", "velocity", "speed", "motion", "direction", "apply velocity",
-            "set velocity", "right", "left", "up", "down", "horizontal", "vertical",
-            "acceleration", "deceleration"
+            "move", "velocity", "speed", "motion", "direction", "travel",
+            "right", "left", "up", "down", "horizontal", "vertical",
+            "diagonal", "straight", "curve", "path"
         ]
         
-        # Physics keywords
-        physics_keywords = [
-            "flock", "flocking", "physics", "gravity", "force", "attract", "repel", 
-            "behavior", "behaviour", "emergent", "swarm", "birds", "cohesion", 
-            "separation", "alignment", "bounce", "bouncing", "elasticity"
+        # Color keywords  
+        color_keywords = [
+            "color", "colour", "blue", "red", "green", "yellow", "white", "black",
+            "cyan", "magenta", "orange", "purple", "pink", "rainbow", "bright"
         ]
         
-        # Composition keywords
-        composition_keywords = [
-            "assemble", "compose", "script", "final", "combine", "generate script",
-            "visualization", "complete"
+        # Particle creation keywords
+        particle_keywords = [
+            "create", "spawn", "generate", "add", "make", "particles", "particle",
+            "pixels", "pixel", "dots", "points", "circles", "balls"
         ]
         
-        # Check in order of specificity
-        # 1. Check for composition first (most specific)
-        if any(keyword in step_lower for keyword in composition_keywords):
-            return "composition"
-        
-        # 2. Check for physics (specific behaviors)
+        # Check in order of priority
         if any(keyword in step_lower for keyword in physics_keywords):
             return "physics"
-        
-        # 3. Check for motion (before color, as motion words are more specific)
-        if any(keyword in step_lower for keyword in motion_keywords):
-            return "motion"
-        
-        # 4. Check for color (before particle, as color is more specific)
-        if any(keyword in step_lower for keyword in color_keywords):
+        elif any(keyword in step_lower for keyword in motion_keywords):
+            return "motion" 
+        elif any(keyword in step_lower for keyword in color_keywords):
             return "color"
-        
-        # 5. Check for particle creation (most general)
-        if any(keyword in step_lower for keyword in particle_keywords):
+        elif any(keyword in step_lower for keyword in particle_keywords):
             return "particle"
-        
-        # Default to particle if unclear
-        logger.warning(f"⚠️ Could not determine agent type for step: {step}")
-        return "particle"
+        else:
+            # Default routing for unclear steps
+            if "step 1" in step_lower or "first" in step_lower:
+                return "particle"
+            elif "step 2" in step_lower or "second" in step_lower:
+                return "color"  
+            elif "step 3" in step_lower or "third" in step_lower:
+                return "physics"
+            else:
+                return "particle"  # Ultimate fallback
 
-    def _generate_fallback_tool_calls(self, user_request: str) -> List[ToolCall]:
-        """Generate basic tool calls based on keywords in the request."""
-        logger.info("🔧 Generating fallback tool calls from request analysis")
+    def _generate_enhanced_fallback_tool_calls(self, user_request: str) -> List[ToolCall]:
+        """ENHANCED: Much better fallback generation with comprehensive extraction."""
+        logger.info("🔧 Generating enhanced fallback tool calls from request analysis")
         
         tool_calls = []
         request_lower = user_request.lower()
         
-        # Extract number of particles
-        n_particles = 1
-        numbers = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]
-        for i, word in enumerate(numbers):
-            if word in request_lower:
-                n_particles = i + 1
-                break
+        # ENHANCED: Extract numbers more accurately
+        n_particles = self._extract_particle_count(request_lower)
         
-        # Check for explicit numbers
-        import re
-        numbers_found = re.findall(r'\b(\d+)\b', request_lower)
-        if numbers_found:
-            n_particles = max(n_particles, int(numbers_found[0]))
+        # Determine position based on request
+        position = self._extract_position(request_lower)
         
-        # Determine position - use proper normalized coordinates
-        position = None
-        if "left" in request_lower:
-            position = [0.1, 0.5]
-        elif "right" in request_lower:
-            position = [0.9, 0.5]
-        elif "top" in request_lower:
-            position = [0.5, 0.1]
-        elif "bottom" in request_lower:
-            position = [0.5, 0.9]
-        elif "center" in request_lower or "centre" in request_lower:
-            position = [0.5, 0.5]
-        # Default to None for random positioning
-        
-        # Create particles
+        # Create particles with extracted count
         tool_calls.append(ToolCall(
             tool_name="create_particles",
             parameters={"n": n_particles, "species_id": 0, "position": position}
         ))
         
-        # Handle colors
-        if "blue" in request_lower:
+        # Extract and apply colors
+        color = self._extract_color(request_lower)
+        if color:
             tool_calls.append(ToolCall(
                 tool_name="set_species_color",
-                parameters={"species_id": 0, "color": [0.0, 0.0, 1.0, 1.0]}
-            ))
-        elif "red" in request_lower:
-            tool_calls.append(ToolCall(
-                tool_name="set_species_color",
-                parameters={"species_id": 0, "color": [1.0, 0.0, 0.0, 1.0]}
-            ))
-        elif "green" in request_lower:
-            tool_calls.append(ToolCall(
-                tool_name="set_species_color",
-                parameters={"species_id": 0, "color": [0.0, 1.0, 0.0, 1.0]}
-            ))
-        elif "yellow" in request_lower:
-            tool_calls.append(ToolCall(
-                tool_name="set_species_color",
-                parameters={"species_id": 0, "color": [1.0, 1.0, 0.0, 1.0]}
+                parameters={"species_id": 0, "color": color}
             ))
         
-        # Handle movement - use simple literal values only
-        velocity = None
-        if "right" in request_lower and ("move" in request_lower or "moving" in request_lower):
-            velocity = [2.0, 0.0]
-        elif "left" in request_lower and ("move" in request_lower or "moving" in request_lower):
-            velocity = [-2.0, 0.0]
-        elif ("up" in request_lower or "upward" in request_lower) and ("move" in request_lower or "moving" in request_lower):
-            velocity = [0.0, -2.0]
-        elif ("down" in request_lower or "downward" in request_lower) and ("move" in request_lower or "moving" in request_lower):
-            velocity = [0.0, 2.0]
-        elif "top" in request_lower and "bottom" in request_lower:
-            velocity = [0.0, 2.0]  # Top to bottom
+        # Extract and apply physics behaviors
+        physics_behavior = self._extract_physics_behavior(request_lower)
+        if physics_behavior:
+            tool_calls.append(physics_behavior)
         
-        if velocity:
-            tool_calls.append(ToolCall(
-                tool_name="set_species_velocity",
-                parameters={"species_id": 0, "velocity": velocity}
-            ))
+        # Extract and apply basic movement if no physics
+        elif not physics_behavior:
+            velocity = self._extract_velocity(request_lower)
+            if velocity:
+                tool_calls.append(ToolCall(
+                    tool_name="set_species_velocity",
+                    parameters={"species_id": 0, "velocity": velocity}
+                ))
         
-        # Handle flocking
-        if any(word in request_lower for word in ["flock", "swarm", "birds", "together"]):
-            tool_calls.append(ToolCall(
-                tool_name="apply_flock_behavior",
-                parameters={"species_id": 0, "cohesion": 0.7, "separation": 0.3, "alignment": 0.5}
-            ))
-        
-        logger.info(f"🔧 Generated {len(tool_calls)} fallback tool calls")
+        logger.info(f"🔧 Generated {len(tool_calls)} enhanced fallback tool calls")
         return tool_calls
+    
+    def _extract_particle_count(self, request: str) -> int:
+        """Extract particle count from natural language with comprehensive number detection."""
+        
+        # Number word mapping
+        number_words = {
+            "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+            "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+            "a": 1, "single": 1, "couple": 2, "few": 3, "several": 5,
+            "many": 8, "lots": 10
+        }
+        
+        # Check for number words first
+        for word, num in number_words.items():
+            if f" {word} " in f" {request} " or request.startswith(word):
+                return num
+        
+        # Check for digits
+        numbers = re.findall(r'\b(\d+)\b', request)
+        if numbers:
+            return max(1, min(20, int(numbers[0])))  # Clamp between 1-20
+        
+        # Default based on plurality and context
+        if "particle" in request and "particles" not in request:
+            return 1
+        elif "pixel" in request and "pixels" not in request:
+            return 1
+        elif "circle" in request and "circles" not in request:
+            return 1
+        else:
+            return 3  # Default for plural forms
+    
+    def _extract_color(self, request: str) -> List[float]:
+        """Extract color from natural language with comprehensive color detection."""
+        color_map = {
+            "red": [1.0, 0.0, 0.0, 1.0],
+            "green": [0.0, 1.0, 0.0, 1.0],
+            "blue": [0.0, 0.0, 1.0, 1.0],
+            "yellow": [1.0, 1.0, 0.0, 1.0],
+            "orange": [1.0, 0.5, 0.0, 1.0],
+            "purple": [0.5, 0.0, 1.0, 1.0],
+            "pink": [1.0, 0.5, 0.8, 1.0],
+            "white": [1.0, 1.0, 1.0, 1.0],
+            "black": [0.0, 0.0, 0.0, 1.0],
+            "cyan": [0.0, 1.0, 1.0, 1.0],
+            "magenta": [1.0, 0.0, 1.0, 1.0],
+            "lime": [0.5, 1.0, 0.0, 1.0],
+            "navy": [0.0, 0.0, 0.5, 1.0]
+        }
+        
+        for color_name, color_value in color_map.items():
+            if color_name in request:
+                return color_value
+        return None
+    
+    def _extract_physics_behavior(self, request: str) -> ToolCall:
+        """Extract physics behavior from natural language with comprehensive behavior detection."""
+        if "bounc" in request or "around" in request:
+            return ToolCall(
+                tool_name="apply_bouncing_behavior",
+                parameters={"species_id": 0, "speed_range": [1.0, 3.0], "collision_mode": "bounce"}
+            )
+        elif "float" in request or "drift" in request or "gentle" in request:
+            return ToolCall(
+                tool_name="apply_gentle_movement", 
+                parameters={"species_id": 0, "speed": 0.8}
+            )
+        elif "random" in request or "chaotic" in request:
+            return ToolCall(
+                tool_name="apply_random_movement",
+                parameters={"species_id": 0, "speed": 2.0, "randomness": 0.8}
+            )
+        elif "spiral" in request or "orbit" in request:
+            return ToolCall(
+                tool_name="apply_rotational_movement",
+                parameters={"species_id": 0, "angular_speed": 0.05}
+            )
+        return None
+    
+    def _extract_velocity(self, request: str) -> List[float]:
+        """Extract basic velocity from movement descriptions."""
+        if "right" in request and ("move" in request or "moving" in request):
+            return [2.0, 0.0]
+        elif "left" in request and ("move" in request or "moving" in request):
+            return [-2.0, 0.0]
+        elif ("up" in request or "upward" in request) and ("move" in request or "moving" in request):
+            return [0.0, -2.0]
+        elif ("down" in request or "downward" in request) and ("move" in request or "moving" in request):
+            return [0.0, 2.0]
+        elif "top" in request and "bottom" in request:
+            return [0.0, 2.0]  # Top to bottom
+        elif "left" in request and "right" in request:
+            return [2.0, 0.0]  # Left to right
+        return None
+    
+    def _extract_position(self, request: str) -> List[float]:
+        """Extract position from natural language with comprehensive position detection."""
+        if "left" in request and "right" not in request:
+            return [0.1, 0.5]
+        elif "right" in request and "left" not in request:
+            return [0.9, 0.5]
+        elif "top" in request and "bottom" not in request:
+            return [0.5, 0.1]
+        elif "bottom" in request and "top" not in request:
+            return [0.5, 0.9]
+        elif "center" in request or "centre" in request or "middle" in request:
+            return [0.5, 0.5]
+        return None  # Random placement
 
     def _update_context_from_tool_calls(self, context: Dict[str, Any], tool_calls: List[ToolCall]):
         """Update context with information from tool calls."""
@@ -283,6 +333,30 @@ class RobustCodeGenerationOrchestrator:
 
     def _generate_ultimate_fallback(self, user_request: str) -> str:
         """Generate the ultimate fallback script when everything fails."""
+        
+        # Extract basic info for fallback
+        n_particles = self._extract_particle_count(user_request.lower())
+        color = self._extract_color(user_request.lower()) or [0.0, 1.0, 0.0, 1.0]
+        has_bouncing = "bounc" in user_request.lower() or "around" in user_request.lower()
+        
+        if has_bouncing:
+            physics_code = """
+                # Bouncing physics
+                if tv.p.field[i].pos[0] <= 0 or tv.p.field[i].pos[0] >= tv.x:
+                    tv.p.field[i].vel[0] *= -1.0
+                    tv.p.field[i].pos[0] = ti.max(0.0, ti.min(tv.x, tv.p.field[i].pos[0]))
+                
+                if tv.p.field[i].pos[1] <= 0 or tv.p.field[i].pos[1] >= tv.y:
+                    tv.p.field[i].vel[1] *= -1.0
+                    tv.p.field[i].pos[1] = ti.max(0.0, ti.min(tv.y, tv.p.field[i].pos[1]))"""
+        else:
+            physics_code = """
+                # Basic boundary wrapping
+                if tv.p.field[i].pos[0] > tv.x:
+                    tv.p.field[i].pos[0] = 0
+                if tv.p.field[i].pos[0] < 0:
+                    tv.p.field[i].pos[0] = tv.x"""
+        
         return f'''"""
 Ultimate fallback script for: {user_request}
 This script is generated when the entire MoE system fails.
@@ -294,53 +368,70 @@ from tolvera import Tolvera, run
 def main(**kwargs):
     """
     Ultimate fallback implementation.
-    Basic particle system for: {user_request}
+    Enhanced particle system for: {user_request}
     """
-    tv = Tolvera(n=50, species=1, **kwargs)
+    tv = Tolvera(n={n_particles}, species=1, **kwargs)
     
     @ti.kernel
     def init_particles():
-        """Initialize particles with basic setup."""
-        for i in range(min(10, tv.pn)):
+        """Initialize particles with enhanced setup."""
+        # Deactivate all particles first
+        for i in range(tv.pn):
+            tv.p.field[i].active = 0.0
+        
+        # Initialize {n_particles} particles
+        for i in range({n_particles}):
             tv.p.field[i].active = 1.0
             tv.p.field[i].species = 0
-            tv.p.field[i].pos = [tv.x * 0.2, tv.y * 0.5]
-            tv.p.field[i].vel = [1.0, 0.0]
-            tv.p.field[i].size = 8.0
+            tv.p.field[i].pos = ti.Vector([tv.x * ti.random(), tv.y * ti.random()])
+            # Random velocities for dynamic motion
+            speed = 1.0 + ti.random() * 2.0
+            angle = ti.random() * 2.0 * 3.14159
+            tv.p.field[i].vel = ti.Vector([speed * ti.cos(angle), speed * ti.sin(angle)])
+            tv.p.field[i].size = 10.0 + ti.random() * 6.0
             tv.p.field[i].mass = 1.0
     
     @ti.kernel
     def update_particles():
-        """Basic particle movement."""
-        for i in range(tv.pn):
+        """Enhanced particle movement."""
+        for i in range({n_particles}):
             if tv.p.field[i].active > 0:
                 tv.p.field[i].pos += tv.p.field[i].vel
+                {physics_code}
+    
+    @ti.kernel
+    def draw_particles():
+        """Draw enhanced particles."""
+        tv.px.background(0.0, 0.0, 0.0)
+        
+        for i in range({n_particles}):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
                 
-                # Boundary wrapping
-                if tv.p.field[i].pos[0] > tv.x:
-                    tv.p.field[i].pos[0] = 0
-                if tv.p.field[i].pos[0] < 0:
-                    tv.p.field[i].pos[0] = tv.x
+                species_id = tv.p.field[i].species
+                color = tv.s.species.field[species_id].rgba
+                
+                tv.px.circle(x, y, size, color, fill=1)
     
-    # Set basic color based on request
-    color = [0.2, 0.4, 1.0, 1.0]  # Default blue
-    if "red" in "{user_request}".lower():
-        color = [1.0, 0.2, 0.2, 1.0]
-    elif "green" in "{user_request}".lower():
-        color = [0.2, 1.0, 0.2, 1.0]
-    elif "yellow" in "{user_request}".lower():
-        color = [1.0, 1.0, 0.2, 1.0]
+    # Set enhanced color
+    tv.s.species.field[0].rgba = ti.Vector({color})
     
-    tv.s.species.field[0].rgba = color
-    
-    # Initialize
-    init_particles()
+    # Initialization flag
+    initialized = ti.field(ti.i32, shape=())
+    initialized[None] = 0
     
     @tv.render
     def _():
-        tv.px.background(0.05, 0.05, 0.1)
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
+        
         update_particles()
-        tv.px.particles(tv.p, tv.s.species(), "circle")
+        draw_particles()
+        
         return tv.px
 
 if __name__ == '__main__':
@@ -376,36 +467,36 @@ if __name__ == '__main__':
         return {
             "conductor": {
                 "model": self.conductor.model_name,
-                "role": "Master planner with robust error handling",
+                "role": "Enhanced master planner with number and behavior extraction",
                 "status": "ready"
             },
             "particle": {
                 "model": self.particle_agent.model_name,
-                "role": "Particle creation with fallbacks",
+                "role": "Enhanced particle creation with accurate count extraction",
                 "status": "ready"
             },
             "color": {
                 "model": self.color_agent.model_name,
-                "role": "Color management with fallbacks",
+                "role": "Color management with comprehensive color detection",
                 "status": "ready"
             },
             "motion": {
                 "model": self.motion_agent.model_name,
-                "role": "Movement with fallbacks",
+                "role": "Movement with directional detection",
                 "status": "ready"
             },
             "physics": {
                 "model": self.physics_agent.model_name,
-                "role": "Physics with fallbacks",
+                "role": "Enhanced physics with bouncing and behavior detection",
                 "status": "ready"
             },
             "composition": {
                 "model": self.composition_agent.model_name,
-                "role": "Script assembly (direct generation)",
+                "role": "Enhanced script assembly with physics behavior support",
                 "status": "ready"
             }
         }
 
 def create_robust_orchestrator() -> RobustCodeGenerationOrchestrator:
-    """Create the robust orchestrator."""
+    """Create the enhanced robust orchestrator."""
     return RobustCodeGenerationOrchestrator()
