@@ -103,7 +103,8 @@ from .json_utils import (
     validate_task_plan_json,
     extract_json_from_text,
     fix_quotes,
-    test_improved_json_utils,
+    test_json_utils,
+    test_improved_json_utils,  # Fixed: now this function exists
 )
 
 # =============================================================================
@@ -212,7 +213,8 @@ __all__ = [
     "validate_task_plan_json",
     "fix_common_json_issues",
     "extract_json_from_text",
-    "test_improved_json_utils",
+    "test_json_utils",
+    "test_improved_json_utils",  # Fixed: now included in exports
     
     # === ENHANCED SCRIPT GENERATORS ===
     "generate_bouncing_script",

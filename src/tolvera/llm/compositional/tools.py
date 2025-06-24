@@ -4,7 +4,7 @@ Tool definitions and Pydantic schemas for the MoE system.
 Updated with enhanced script generation for the robust system.
 """
 
-from typing import List, Optional, Tuple, Dict, Any  # Classic typing imports
+from typing import List, Optional, Tuple, Dict, Any
 from pydantic import BaseModel, Field
 
 # =============================================================================
@@ -96,9 +96,11 @@ class ApplyVaryingSpeedsSchema(BaseModel):
 # =============================================================================
 
 class ToolCall(BaseModel):
-    """Represents a tool call to execute."""
+    """Enhanced tool call with both structured parameters and code snippets."""
     tool_name: str = Field(description="Tool function name")
-    parameters: Dict[str, Any] = Field(description="Tool parameters")
+    parameters: Dict[str, Any] = Field(description="Tool parameters", default_factory=dict)
+    code_snippet: Optional[str] = Field(description="Python/Taichi code implementation", default="")
+    explanation: Optional[str] = Field(description="What this code accomplishes", default="")
 
 class TaskResult(BaseModel):
     """Result from an expert agent."""
@@ -246,7 +248,12 @@ def tool_calls_to_python_code(tool_calls: List[ToolCall], user_request: str) -> 
     """
     Generate Tölvera scripts that match the exact patterns from working examples.
     ENHANCED VERSION: Now supports the new physics behaviors from the robust agents.
+    FIXED: Better error handling and fallback generation.
     """
+    
+    # Handle empty tool calls
+    if not tool_calls:
+        return generate_emergency_fallback_script(user_request, 1, [0.0, 1.0, 0.0, 1.0])
     
     # Analyze tool calls to extract information
     particles_created = 1
@@ -261,41 +268,138 @@ def tool_calls_to_python_code(tool_calls: List[ToolCall], user_request: str) -> 
     has_bouncing = "bounc" in user_request.lower() or "around" in user_request.lower()
     has_random_movement = "random" in user_request.lower() or "chaotic" in user_request.lower()
     
-    # Process tool calls
-    for call in tool_calls:
-        if call.tool_name == "create_particles":
-            n = call.parameters.get("n", 1)
-            species_id = call.parameters.get("species_id", 0)
-            position = call.parameters.get("position")
+    # Process tool calls safely
+    try:
+        for call in tool_calls:
+            if call.tool_name == "create_particles":
+                n = call.parameters.get("n", 1)
+                species_id = call.parameters.get("species_id", 0)
+                position = call.parameters.get("position")
+                
+                particles_created = max(1, n)  # Ensure at least 1 particle
+                num_species = max(num_species, species_id + 1)
+                if position:
+                    positions[species_id] = position
             
-            particles_created = n
-            num_species = max(num_species, species_id + 1)
-            positions[species_id] = position
-        
-        elif call.tool_name == "set_species_color":
-            species_id = call.parameters.get("species_id", 0)
-            color = call.parameters.get("color", [1.0, 1.0, 1.0, 1.0])
-            species_colors[species_id] = color
-        
-        elif call.tool_name == "set_species_velocity":
-            species_id = call.parameters.get("species_id", 0)
-            velocity = call.parameters.get("velocity", [0.0, 0.0])
-            species_velocities[species_id] = velocity
-        
-        # NEW: Handle physics behaviors from robust agents
-        elif call.tool_name in ["apply_bouncing_behavior", "apply_gentle_movement", 
-                               "apply_random_movement", "apply_rotational_movement"]:
-            physics_behaviors[call.tool_name] = call.parameters
+            elif call.tool_name == "set_species_color":
+                species_id = call.parameters.get("species_id", 0)
+                color = call.parameters.get("color", [1.0, 1.0, 1.0, 1.0])
+                species_colors[species_id] = color
+            
+            elif call.tool_name == "set_species_velocity":
+                species_id = call.parameters.get("species_id", 0)
+                velocity = call.parameters.get("velocity", [0.0, 0.0])
+                species_velocities[species_id] = velocity
+            
+            # NEW: Handle physics behaviors from robust agents
+            elif call.tool_name in ["apply_bouncing_behavior", "apply_gentle_movement", 
+                                   "apply_random_movement", "apply_rotational_movement"]:
+                physics_behaviors[call.tool_name] = call.parameters
+                
+    except Exception as e:
+        print(f"Error processing tool calls: {e}")
+        # Use fallback values
+        particles_created = 1
+        species_colors = {0: [0.0, 1.0, 0.0, 1.0]}  # Default green
     
     # Generate different code based on detected behaviors and physics
-    if is_circular_motion or "apply_rotational_movement" in physics_behaviors:
-        return generate_circular_motion_script(user_request, particles_created, species_colors, positions)
-    elif has_bouncing or has_random_movement or "apply_bouncing_behavior" in physics_behaviors:
-        return generate_bouncing_script(user_request, particles_created, species_colors, physics_behaviors)
-    elif "apply_gentle_movement" in physics_behaviors:
-        return generate_gentle_movement_script(user_request, particles_created, species_colors, physics_behaviors)
-    else:
-        return generate_basic_movement_script(user_request, particles_created, species_colors, positions, species_velocities)
+    try:
+        if is_circular_motion or "apply_rotational_movement" in physics_behaviors:
+            return generate_circular_motion_script(user_request, particles_created, species_colors, positions)
+        elif has_bouncing or has_random_movement or "apply_bouncing_behavior" in physics_behaviors:
+            return generate_bouncing_script(user_request, particles_created, species_colors, physics_behaviors)
+        elif "apply_gentle_movement" in physics_behaviors:
+            return generate_gentle_movement_script(user_request, particles_created, species_colors, physics_behaviors)
+        else:
+            return generate_basic_movement_script(user_request, particles_created, species_colors, positions, species_velocities)
+    except Exception as e:
+        print(f"Error in script generation: {e}")
+        return generate_emergency_fallback_script(user_request, particles_created, species_colors.get(0, [0.0, 1.0, 0.0, 1.0]))
+    
+def generate_emergency_fallback_script(user_request: str, particles_created: int, color: List[float]) -> str:
+    """Generate emergency fallback script when everything else fails."""
+    
+    return f'''"""
+Emergency fallback script for: {user_request}
+Generated by Tölvera MoE system emergency fallback.
+"""
+
+import taichi as ti
+from tolvera import Tolvera, run
+
+def main(**kwargs):
+    """
+    Emergency fallback implementation for: {user_request}
+    """
+    tv = Tolvera(n={particles_created}, species=1, **kwargs)
+    
+    @ti.kernel
+    def init_particles():
+        # Deactivate all particles first
+        for i in range(tv.pn):
+            tv.p.field[i].active = 0.0
+        
+        # Initialize {particles_created} particles
+        for i in range({particles_created}):
+            tv.p.field[i].active = 1.0
+            tv.p.field[i].species = 0
+            tv.p.field[i].pos = ti.Vector([tv.x * 0.2, tv.y * 0.5])  # Start left side
+            tv.p.field[i].vel = ti.Vector([2.0, 0.0])  # Move right
+            tv.p.field[i].size = 16.0
+            tv.p.field[i].mass = 1.0
+
+    @ti.kernel
+    def update_particles():
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                # Update position
+                tv.p.field[i].pos += tv.p.field[i].vel
+                
+                # Wrap around screen
+                if tv.p.field[i].pos[0] > tv.x:
+                    tv.p.field[i].pos[0] = 0.0
+                if tv.p.field[i].pos[0] < 0:
+                    tv.p.field[i].pos[0] = tv.x
+                if tv.p.field[i].pos[1] > tv.y:
+                    tv.p.field[i].pos[1] = 0.0
+                if tv.p.field[i].pos[1] < 0:
+                    tv.p.field[i].pos[1] = tv.y
+
+    @ti.kernel
+    def draw_particles():
+        tv.px.background(0.0, 0.0, 0.0)
+        for i in range({particles_created}):
+            if tv.p.field[i].active > 0:
+                pos = tv.p.field[i].pos
+                x = ti.cast(pos[0], ti.i32)
+                y = ti.cast(pos[1], ti.i32)
+                size = ti.cast(tv.p.field[i].size, ti.i32)
+                tv.px.circle(x, y, size, ti.Vector({color}), fill=1)
+
+    # Set species color
+    tv.s.species.field[0].rgba = ti.Vector({color})
+    
+    # Initialization flag
+    initialized = ti.field(ti.i32, shape=())
+    initialized[None] = 0
+    
+    @tv.render
+    def _():
+        if initialized[None] == 0:
+            init_particles()
+            initialized[None] = 1
+        
+        update_particles()
+        draw_particles()
+        
+        return tv.px
+
+if __name__ == '__main__':
+    try:
+        run(main)
+    except KeyboardInterrupt:
+        print("\\nExiting emergency fallback script.")
+'''
 
 def generate_bouncing_script(user_request: str, particles_created: int, species_colors: dict, physics_behaviors: dict) -> str:
     """Generate script with bouncing/random movement physics."""
