@@ -1,35 +1,25 @@
-# src/tolvera/llm/compositional/orchestrator.py
-"""
-IMPROVED orchestrator with better agent routing and organic behavior generation.
-"""
-
 import logging
 import re
 from typing import List, Dict, Any
 from .agents import (
-    RobustConductorAgent, RobustParticleCreationAgent, RobustColorPaletteAgent,
-    RobustMotionDynamicsAgent, RobustPhysicsAgent, RobustCompositionAgent
+    ConductorAgent, ParticleCreationAgent, ColorAgent,
+    MotionAgent, PhysicsAgent, CompositionAgent
 )
 from .tools import GeneratedScript, ToolCall
 
 logger = logging.getLogger(__name__)
 
-class RobustCodeGenerationOrchestrator:
-    """
-    IMPROVED orchestrator with better agent routing and more organic particle behaviors.
-    """
-    
+class CodeGenerationOrchestrator:
     def __init__(self):
-        """Initialize all expert agents."""
-        logger.info("🎭 Initializing RobustCodeGenerationOrchestrator...")
+        logger.info("Initializing CodeGenerationOrchestrator...")
         
         try:
-            self.conductor = RobustConductorAgent()
-            self.particle_agent = RobustParticleCreationAgent()
-            self.color_agent = RobustColorPaletteAgent()
-            self.motion_agent = RobustMotionDynamicsAgent()
-            self.physics_agent = RobustPhysicsAgent()
-            self.composition_agent = RobustCompositionAgent()
+            self.conductor = ConductorAgent()
+            self.particle_agent = ParticleCreationAgent()
+            self.color_agent = ColorAgent()
+            self.motion_agent = MotionAgent()
+            self.physics_agent = PhysicsAgent()
+            self.composition_agent = CompositionAgent()
             
             logger.info("✅ All robust agents initialized successfully")
         except Exception as e:
@@ -37,15 +27,15 @@ class RobustCodeGenerationOrchestrator:
             raise
 
     async def generate_script(self, user_request: str) -> GeneratedScript:
-        """Generate a complete Tölvera script with improved agent routing."""
+        """Generate a complete script with agent routing."""
         
         try:
-            logger.info(f"🎯 Processing request: {user_request}")
+            logger.info(f" Processing request: {user_request}")
             
             # Step 1: Create execution plan
-            logger.info("📋 Step 1: Planning with RobustConductorAgent...")
+            logger.info(" Step 1: Planning with ConductorAgent...")
             plan = await self.conductor.plan_task(user_request)
-            logger.info(f"📋 Plan created: {plan.description}")
+            logger.info(f" Plan created: {plan.description}")
             
             # Step 2: Execute plan through expert agents (they return ToolCall objects, NOT JSON)
             logger.info("⚡ Step 2: Executing plan through expert agents...")
@@ -54,84 +44,74 @@ class RobustCodeGenerationOrchestrator:
             
             for i, step in enumerate(plan.steps):
                 logger.info(f"⚡ Step {i+1}/{len(plan.steps)}: {step}")
-                
-                # IMPROVED: Better agent routing logic
+                # Agent routing here
                 try:
                     agent_type = self._determine_agent_type(step)
                     
                     if agent_type == "particle":
-                        result = await self.particle_agent.execute_task(step)
+                        result = await self.particle_agent.execute_task(step, user_request)
                         all_tool_calls.extend(result.tool_calls)
                         self._update_context_from_tool_calls(context, result.tool_calls)
                     
                     elif agent_type == "color":
-                        result = await self.color_agent.execute_task(step, context)
+                        result = await self.color_agent.execute_task(step, user_request)
                         all_tool_calls.extend(result.tool_calls)
                         context["colors_set"] = True
                     
                     elif agent_type == "motion":
-                        result = await self.motion_agent.execute_task(step, context)
+                        result = await self.motion_agent.execute_task(step, user_request)
                         all_tool_calls.extend(result.tool_calls)
                         context["motion_applied"] = True
                     
                     elif agent_type == "physics":
-                        result = await self.physics_agent.execute_task(step, context)
+                        result = await self.physics_agent.execute_task(step, user_request)
                         all_tool_calls.extend(result.tool_calls)
                         context["physics_applied"] = True
                     
                     elif agent_type == "composition":
-                        logger.info("📝 Composition step - will handle at end")
+                        logger.info("Composition step - will handle at end")
                         continue
                     
                     else:
                         logger.warning(f"❓ Unrecognized step type for: {step}")
-                        # Apply intelligent fallbacks based on missing components
+                        # Only fallback if needed
                         fallback_calls = self._generate_step_fallback(step, context)
                         all_tool_calls.extend(fallback_calls)
                 
                 except Exception as e:
-                    logger.warning(f"⚠️ Step {i+1} failed: {e}, applying fallbacks")
+                    logger.warning(f"Step {i+1} failed: {e}, applying fallbacks")
                     fallback_calls = self._generate_step_fallback(step, context)
                     all_tool_calls.extend(fallback_calls)
             
-            # IMPROVED: Check for missing essential components and add them
-            logger.info("🔧 Checking for missing essential components...")
+            logger.info("Checking for missing essential components...")
             missing_components = self._detect_missing_components(user_request, context, all_tool_calls)
             if missing_components:
-                logger.info(f"🔧 Adding missing components: {missing_components}")
+                logger.info(f"Adding missing components: {missing_components}")
                 additional_calls = await self._generate_missing_components(user_request, missing_components, context)
                 all_tool_calls.extend(additional_calls)
             
             # Step 3: Ensure we have minimum viable tool calls
             if not all_tool_calls or context["particles_created"] == 0:
-                logger.warning("⚠️ Insufficient tool calls generated, creating enhanced fallbacks")
-                fallback_calls = self._generate_enhanced_fallback_tool_calls(user_request)
+                logger.warning("Insufficient tool calls generated, creating enhanced fallbacks")
+                fallback_calls = self._generate_tool_calls(user_request)
                 all_tool_calls.extend(fallback_calls)
             
             # Step 4: CompositionAgent assembles final script (converts ToolCalls to Python code)
-            logger.info("📝 Step 3: Assembling final script with RobustCompositionAgent...")
+            logger.info("Step 3: Assembling final script with CompositionAgent...")
             # NOTE: This returns a GeneratedScript with Python code, NOT JSON
             script = await self.composition_agent.compose_script(user_request, all_tool_calls)
             
             logger.info(f"✅ Successfully generated script: {script.title}")
-            logger.info(f"🔧 Used {len(all_tool_calls)} tool calls")
+            logger.info(f"Used {len(all_tool_calls)} tool calls")
             
             return script
             
         except Exception as e:
             logger.error(f"❌ Script generation failed: {e}")
-            
-            # Ultimate fallback script
-            fallback_script = GeneratedScript(
-                title=f"Ultimate Fallback: {user_request}",
-                code=self._generate_ultimate_fallback(user_request),
-                explanation=f"Generated ultimate fallback due to complete system failure: {str(e)}"
-            )
-            logger.warning("⚠️ Returning ultimate fallback script")
-            return fallback_script
+            logger.warning("Returning ultimate fallback script")
+            return {}
 
     def _detect_missing_components(self, user_request: str, context: Dict[str, Any], tool_calls: List[ToolCall]) -> List[str]:
-        """Detect missing essential components based on the request and context."""
         missing = []
         request_lower = user_request.lower()
         
@@ -154,7 +134,6 @@ class RobustCodeGenerationOrchestrator:
         return missing
     
     async def _generate_missing_components(self, user_request: str, missing_components: List[str], context: Dict[str, Any]) -> List[ToolCall]:
-        """Generate missing components using the appropriate agents."""
         additional_calls = []
         
         for component in missing_components:
@@ -162,24 +141,23 @@ class RobustCodeGenerationOrchestrator:
                 if component == "motion":
                     # Generate motion step from request
                     motion_step = self._generate_motion_step_from_request(user_request)
-                    result = await self.motion_agent.execute_task(motion_step, context)
+                    result = await self.motion_agent.execute_task(motion_step, user_request)
                     additional_calls.extend(result.tool_calls)
-                    logger.info(f"🔧 Added missing motion: {result.explanation}")
+                    logger.info(f"Added missing motion: {result.explanation}")
                     
                 elif component == "physics":
                     # Generate physics step from request  
                     physics_step = self._generate_physics_step_from_request(user_request)
-                    result = await self.physics_agent.execute_task(physics_step, context)
+                    result = await self.physics_agent.execute_task(physics_step, user_request)
                     additional_calls.extend(result.tool_calls)
-                    logger.info(f"🔧 Added missing physics: {result.explanation}")
+                    logger.info(f"Added missing physics: {result.explanation}")
                     
             except Exception as e:
-                logger.warning(f"⚠️ Failed to generate missing {component}: {e}")
+                logger.warning(f"Failed to generate missing {component}: {e}")
         
         return additional_calls
     
     def _generate_motion_step_from_request(self, user_request: str) -> str:
-        """Generate a motion step description from the user request."""
         request_lower = user_request.lower()
         
         if "right" in request_lower:
@@ -196,7 +174,6 @@ class RobustCodeGenerationOrchestrator:
             return "Apply default movement to particles"
 
     def _generate_physics_step_from_request(self, user_request: str) -> str:
-        """Generate a physics step description from the user request."""
         request_lower = user_request.lower()
         
         if "bounce" in request_lower or "bouncing" in request_lower:
@@ -209,25 +186,19 @@ class RobustCodeGenerationOrchestrator:
             return "Apply appropriate physics behavior to particles"
 
     def _determine_agent_type(self, step: str) -> str:
-        """
-        IMPROVED: Much better agent routing with clear priority system.
-        """
         step_lower = step.lower()
         
-        # Composition keywords (highest priority)
         composition_keywords = ["assemble", "final script", "compose", "generate script"]
         if any(keyword in step_lower for keyword in composition_keywords):
             return "composition"
         
-        # Physics keywords (check before motion to avoid conflicts)
         physics_keywords = [
-            "bounc", "collision", "physics", "flock", "birds", "behavior",
+            "bounce", "collision", "physics", "flock", "birds", "behavior",
             "cohesion", "separation", "alignment", "emergent"
         ]
         if any(keyword in step_lower for keyword in physics_keywords):
             return "physics"
         
-        # Motion keywords
         motion_keywords = [
             "move", "velocity", "speed", "motion", "direction", "travel",
             "right", "left", "up", "down", "constant velocity"
@@ -235,7 +206,6 @@ class RobustCodeGenerationOrchestrator:
         if any(keyword in step_lower for keyword in motion_keywords):
             return "motion"
         
-        # Color keywords  
         color_keywords = [
             "color", "colour", "blue", "red", "green", "yellow", "white", "black",
             "cyan", "magenta", "orange", "purple", "pink"
@@ -243,7 +213,6 @@ class RobustCodeGenerationOrchestrator:
         if any(keyword in step_lower for keyword in color_keywords):
             return "color"
         
-        # Particle creation keywords
         particle_keywords = [
             "create", "spawn", "generate", "add", "make", "particles", "particle",
             "pixels", "pixel", "positioned"
@@ -264,7 +233,6 @@ class RobustCodeGenerationOrchestrator:
             return "particle"  # Safe default
 
     def _generate_step_fallback(self, step: str, context: Dict[str, Any]) -> List[ToolCall]:
-        """Generate intelligent fallbacks based on the step and context."""
         fallback_calls = []
         step_lower = step.lower()
         
@@ -303,14 +271,13 @@ class RobustCodeGenerationOrchestrator:
         
         return fallback_calls
 
-    def _generate_enhanced_fallback_tool_calls(self, user_request: str) -> List[ToolCall]:
-        """Generate comprehensive fallback tool calls."""
-        logger.info("🔧 Generating enhanced fallback tool calls")
+    def _generate_tool_calls(self, user_request: str) -> List[ToolCall]:
+        logger.info("Generating enhanced fallback tool calls")
         
         tool_calls = []
         request_lower = user_request.lower()
         
-        # Extract particle count
+        # Get particle count
         n_particles = self._extract_particle_count(request_lower)
         
         # Create particles
@@ -347,11 +314,10 @@ class RobustCodeGenerationOrchestrator:
                     parameters={"species_id": 0, "velocity": velocity}
                 ))
         
-        logger.info(f"🔧 Generated {len(tool_calls)} enhanced fallback tool calls")
+        logger.info(f"Generated {len(tool_calls)} enhanced fallback tool calls")
         return tool_calls
     
     def _extract_particle_count(self, request: str) -> int:
-        """Extract particle count from natural language."""
         number_words = {
             "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
             "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -373,7 +339,6 @@ class RobustCodeGenerationOrchestrator:
             return 3
     
     def _extract_color(self, request: str) -> List[float]:
-        """Extract color from natural language."""
         color_map = {
             "red": [1.0, 0.0, 0.0, 1.0],
             "green": [0.0, 1.0, 0.0, 1.0],
@@ -390,7 +355,6 @@ class RobustCodeGenerationOrchestrator:
         return None
     
     def _extract_velocity(self, request: str) -> List[float]:
-        """Extract velocity from movement descriptions."""
         if "right" in request or "left to right" in request:
             return [2.0, 0.0]
         elif "left" in request:
@@ -402,88 +366,10 @@ class RobustCodeGenerationOrchestrator:
         return None
 
     def _update_context_from_tool_calls(self, context: Dict[str, Any], tool_calls: List[ToolCall]):
-        """Update context with information from tool calls."""
         for call in tool_calls:
             if call.tool_name == "create_particles":
                 context["particles_created"] = call.parameters.get("n", 1)
 
-    def _generate_ultimate_fallback(self, user_request: str) -> str:
-        """Generate the ultimate fallback script when everything fails."""
-        
-        n_particles = self._extract_particle_count(user_request.lower())
-        color = self._extract_color(user_request.lower()) or [0.0, 1.0, 0.0, 1.0]
-        has_bouncing = "bounc" in user_request.lower()
-        
-        return f'''"""
-Ultimate fallback script for: {user_request}
-This script is generated when the MoE system fails.
-"""
-
-import taichi as ti
-from tolvera import Tolvera, run
-
-def main(**kwargs):
-    """
-    Ultimate fallback implementation for: {user_request}
-    """
-    tv = Tolvera(n={n_particles}, species=1, **kwargs)
-    
-    @ti.kernel
-    def init_particles():
-        for i in range(tv.pn):
-            tv.p.field[i].active = 0.0
-        
-        for i in range({n_particles}):
-            tv.p.field[i].active = 1.0
-            tv.p.field[i].species = 0
-            tv.p.field[i].pos = ti.Vector([tv.x * ti.random(), tv.y * ti.random()])
-            speed = 1.0 + ti.random() * 2.0
-            angle = ti.random() * 2.0 * 3.14159
-            tv.p.field[i].vel = ti.Vector([speed * ti.cos(angle), speed * ti.sin(angle)])
-            tv.p.field[i].size = 10.0 + ti.random() * 6.0
-            tv.p.field[i].mass = 1.0
-    
-    @ti.kernel
-    def update_particles():
-        for i in range({n_particles}):
-            if tv.p.field[i].active > 0:
-                tv.p.field[i].pos += tv.p.field[i].vel
-                {"# Bouncing physics" if has_bouncing else "# Basic wrapping"}
-                if tv.p.field[i].pos[0] <= 0 or tv.p.field[i].pos[0] >= tv.x:
-                    tv.p.field[i].vel[0] *= {"-1.0" if has_bouncing else "1.0; tv.p.field[i].pos[0] = tv.x if tv.p.field[i].pos[0] < 0 else 0.0"}
-                if tv.p.field[i].pos[1] <= 0 or tv.p.field[i].pos[1] >= tv.y:
-                    tv.p.field[i].vel[1] *= {"-1.0" if has_bouncing else "1.0; tv.p.field[i].pos[1] = tv.y if tv.p.field[i].pos[1] < 0 else 0.0"}
-    
-    @ti.kernel
-    def draw_particles():
-        tv.px.background(0.0, 0.0, 0.0)
-        for i in range({n_particles}):
-            if tv.p.field[i].active > 0:
-                pos = tv.p.field[i].pos
-                x = ti.cast(pos[0], ti.i32)
-                y = ti.cast(pos[1], ti.i32)
-                size = ti.cast(tv.p.field[i].size, ti.i32)
-                tv.px.circle(x, y, size, ti.Vector({color}), fill=1)
-    
-    tv.s.species.field[0].rgba = ti.Vector({color})
-    initialized = ti.field(ti.i32, shape=())
-    
-    @tv.render
-    def _():
-        if initialized[None] == 0:
-            init_particles()
-            initialized[None] = 1
-        update_particles()
-        draw_particles()
-        return tv.px
-
-if __name__ == '__main__':
-    try:
-        run(main)
-    except KeyboardInterrupt:
-        print("\\nExiting ultimate fallback script.")
-'''
-
-def create_robust_orchestrator() -> RobustCodeGenerationOrchestrator:
+def create_orchestrator() -> CodeGenerationOrchestrator:
     """Create the improved robust orchestrator."""
-    return RobustCodeGenerationOrchestrator()
+    return CodeGenerationOrchestrator()

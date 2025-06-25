@@ -1,48 +1,40 @@
 #!/usr/bin/env python3
-"""
-Simplified test to debug specific MoE issues.
-"""
-
 import asyncio
 import logging
 
-from .compositional.orchestrator import RobustCodeGenerationOrchestrator
-from .compositional.agents import (
-    RobustConductorAgent,
-    RobustParticleCreationAgent,
-    RobustColorPaletteAgent,
-    RobustMotionDynamicsAgent,
-    RobustPhysicsAgent,
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from compositional.orchestrator import CodeGenerationOrchestrator
+from compositional.agents import (
+    ConductorAgent,
+    ParticleCreationAgent,
+    ColorAgent,
+    MotionAgent,
+    PhysicsAgent,
 )
-from .compositional.json_utils import (
-    clean_json_response,
-    safe_json_parse,
-)
-from .compositional.utils import (
-    validate_generated_script,
-    save_generated_script,
-)
+# Utils for saving generated scripts
+from compositional.utils import save_generated_script
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
+# USE DEBUG if you want more info from this
 logger = logging.getLogger(__name__)
 
 async def test_individual_agents():
-    """Test each agent individually to isolate issues."""
-    print("🧪 Testing Individual Agents (Debug Mode)")
-    print("=" * 60)
     
     # Test simple requests that should work
     test_cases = [
-        ("Conductor", RobustConductorAgent(), "plan_task", "three blue particles bouncing around"),
-        ("Particle", RobustParticleCreationAgent(), "execute_task", "Create 3 particles positioned randomly"),
-        ("Color", RobustColorPaletteAgent(), "execute_task", "Set particle color to blue"),
-        ("Motion", RobustMotionDynamicsAgent(), "execute_task", "Move particles from left to right"),
-        ("Physics", RobustPhysicsAgent(), "execute_task", "Apply bouncing behavior to particles"),
+        ("Conductor", ConductorAgent(), "plan_task", "three blue particles bouncing around"),
+        ("Particle", ParticleCreationAgent(), "execute_task", "Create 3 particles positioned randomly"),
+        ("Color", ColorAgent(), "execute_task", "Set particle color to blue"),
+        ("Motion", MotionAgent(), "execute_task", "Move particles from left to right"),
+        ("Physics", PhysicsAgent(), "execute_task", "Apply bouncing behavior to particles"),
     ]
     
     for agent_name, agent, method_name, task in test_cases:
-        print(f"\n🔍 Testing {agent_name} Agent")
+        print(f"\nTesting {agent_name} Agent")
         print(f"Task: '{task}'")
         
         try:
@@ -68,74 +60,51 @@ async def test_individual_agents():
             import traceback
             traceback.print_exc()
 
-async def test_json_issues():
-    """Test specific JSON parsing issues."""
-    print("\n🧪 Testing JSON Issues")
-    print("=" * 40)
-    
-    # Test the problematic JSON from the logs
-    problematic_json = '''{
-    "tool_calls": [
-        {
-            "tool_name": "create_particle",
-            "parameters": {"position": [Math.random() * 800, Math.random() * 600]}
-        }
-    ],
-    "explanation": "Created particles"
-}'''
-    
-    print("Testing problematic JSON:")
-    print(problematic_json[:100] + "...")
-    
-    cleaned = clean_json_response(problematic_json)
-    parsed = safe_json_parse(problematic_json)
-    
-    print(f"Cleaned: {cleaned[:100]}...")
-    print(f"Parsed: {parsed}")
-
 async def test_simple_generation():
-    """Test a single simple generation with detailed logging."""
-    print("\n🧪 Testing Simple Generation")
+    print("\n Testing Simple Generation")
     print("=" * 40)
     
-    request = "create three green particles that all move to the right and have different velocities"
-    print(f"Request: '{request}'")
+    requests = [
+        "create three green particles that all move to the right in a straight line and have different velocities",
+        "create five orange circles that bounce around the screen very quickly!",
+        "create 100 square particles that are crimson in color and bounce around the screen but repel one another when they get close to each other", # This one fails a lot so just heads up on that
+    ]
     
-    try:
-        orchestrator = RobustCodeGenerationOrchestrator()
-        script = await orchestrator.generate_script(request)
+    for i, request in enumerate(requests):
+        print(f"\nTest {i+1}: {request}")
         
-        print(f"✅ Generated: {script.title}")
-        print(f"Code length: {len(script.code)} chars")
-        
-        # Validate
-        validation = validate_generated_script(script.code)
-        print(f"Validation score: {validation['score']}/100")
-        
-        # Save for inspection
-        save_generated_script(script.code, "debug_simple.py")
-        print("💾 Saved to: debug_simple.py")
-        
-        # Show a preview
-        print("\n📄 Code Preview (first 20 lines):")
-        lines = script.code.split('\n')
-        for i, line in enumerate(lines[:20]):
-            print(f"{i+1:2}: {line}")
-        
-        return validation['score'] >= 80
-        
-    except Exception as e:
-        print(f"❌ Failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        try:
+            orchestrator = CodeGenerationOrchestrator()
+            script = await orchestrator.generate_script(request)
+            
+            print(f"✅ Generated: {script.title}")
+            print(f"Code length: {len(script.code)} chars")
+            
+            # Check for correct syntax
+            if "ti.Vector([" in script.code and "ti.Vector(ti.random()" not in script.code:
+                print("✅ Contains correct ti.Vector syntax")
+            else:
+                print("❌ Contains invalid ti.Vector syntax")
+            
+            # Save for inspection
+            filename = f"debug_test_{i+1}.py"
+            save_generated_script(script.code, filename)
+            print(f"Saved to: {filename}")
+            
+        except Exception as e:
+            print(f"❌ Failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    return True
 
 async def test_agent_routing():
     """Test if agents are being routed correctly."""
-    print("\n🧪 Testing Agent Routing")
+    print("\n Testing Agent Routing")
     print("=" * 40)
     
-    orchestrator = RobustCodeGenerationOrchestrator()
+    orchestrator = CodeGenerationOrchestrator()
     
     test_steps = [
         "Create 3 particles positioned randomly on screen",
@@ -150,17 +119,13 @@ async def test_agent_routing():
         # Test the routing logic
         agent_type = orchestrator._determine_agent_type(step)
         print(f"Routed to: {agent_type}")
-        
-        # This should show us if routing is working correctly
 
 async def main():
-    """Run simplified debugging tests."""
-    print("🚀 Simplified MoE Debug Suite")
+    print(" Simplified MoE Debug Suite")
     print("=" * 60)
     
     tests = [
         ("Simple Generation", test_simple_generation),
-        ("JSON Issues", test_json_issues),
         ("Individual Agents", test_individual_agents), 
         ("Agent Routing", test_agent_routing),
     ]

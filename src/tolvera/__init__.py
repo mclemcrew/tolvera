@@ -9,7 +9,7 @@ from .pixels import *
 from .state import StateDict
 from .utils import *
 from .vera import Vera
-from .llm import RobustCodeGenerationOrchestrator
+from .llm import CodeGenerationOrchestrator
 from .tolvera_ import Tolvera
 from .rec import VideoRecorder
 from .dualsense import DualSense
@@ -23,7 +23,7 @@ __all__ = [
     "Pixels",
     "StateDict",
     "Vera",
-    "RobustCodeGenerationOrchestrator",
+    "CodeGenerationOrchestrator",
     "Tolvera",
     "VideoRecorder",
     "DualSense",
