@@ -6,9 +6,8 @@ This module implements the core PoE system for Tölvera particle behaviors using
 
 import taichi as ti
 import numpy as np
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 import logging
-import re
 import time
 import linecache
 
@@ -20,10 +19,16 @@ csv_logger = get_logger()
 
 class SimpleProgrammaticExpert:
 
-    def __init__(self, name: str, code: str, weight: float = 1.0):
+    def __init__(
+            self,
+            name: str,
+            code: str,
+            weight: float = 1.0,
+            expert_type: str = "force"):
         self.name = name
         self.code = code
         self.weight = weight
+        self.expert_type = expert_type  # "force" or "interaction"
         self.function = None
         self.metadata = {}
 
@@ -41,10 +46,19 @@ class PoEBehaviorSystem:
         # Track generated code
         self.generated_expert_code = {}  # Dict mapping expert name -> code
         self.generated_kernel_code = None
+        self.state_definitions = {}  # Dict mapping state name -> state definition
+        self.has_interactions = False  # Flag for kernel complexity
 
         logger.info(f"Initialized PoE system with {self.tv.pn} particles")
 
-    async def regenerate_integration_kernel(self, synthesizer):
+    def add_state_definition(self, state_result):
+        """Store generated state definitions."""
+        state_name = state_result.get("state_name", "unknown")
+        self.state_definitions[state_name] = state_result
+        logger.info(f"Added state definition: {state_name}")
+
+    async def regenerate_integration_kernel(
+            self, synthesizer, state_definitions):
         if not self.experts:
             logger.info("No experts available - clearing integration kernel")
             self._integration_kernel = None
@@ -53,8 +67,16 @@ class PoEBehaviorSystem:
         logger.info(
             f"Regenerating integration kernel for {len(self.experts)} experts")
 
-        expert_info = [{'name': expert.name, 'weight': expert.weight}
-                       for expert in self.experts]
+        # Pass expert type information to kernel generation
+        expert_info = [{
+            'name': expert.name,
+            'weight': expert.weight,
+            'expert_type': getattr(expert, 'expert_type', 'force')
+        } for expert in self.experts]
+
+        # Update interaction flag
+        self.has_interactions = any(
+            e.get('expert_type') == 'interaction' for e in expert_info)
 
         # Collect natural language descriptions of experts for logging
         expert_descriptions = [
@@ -65,64 +87,67 @@ class PoEBehaviorSystem:
 
         start_time = time.time()
         try:
-            result = await synthesizer.synthesize_integration_kernel(expert_info)
+            result = await synthesizer.synthesize_integration_kernel(
+                expert_info, self.state_definitions)
             synthesis_time_ms = (time.time() - start_time) * 1000
 
             # None of this is necessary, but it's nice to have for the CSV
+            # Log synthesis attempt
             csv_logger.log_synthesis_attempt(
                 user_description=user_description_for_kernel,
-                llm_prompt=result.get("prompt", ""),
-                raw_response=result.get("raw_response", ""),
-                extracted_code=result.get("code", ""),
-                success=result["success"],
-                errors=result.get("errors", []),
-                model_name=synthesizer.client.model_name if hasattr(synthesizer, 'client') else "unknown",
-                expert_name=result.get("name", None),
+                llm_prompt="",
+                raw_response="",
+                extracted_code=result.get(
+                    "code",
+                    ""),
+                success=True,
+                errors=[],
+                model_name=synthesizer.client.model_name if hasattr(
+                    synthesizer,
+                    'client') else "unknown",
+                expert_name=result.get(
+                    "name",
+                    None),
                 synthesis_time_ms=synthesis_time_ms,
                 synthesis_type="kernel",
-                included_experts=[expert.name for expert in self.experts],
-                expert_codes=self.generated_expert_code.copy()
-            )
+                included_experts=[
+                    expert.name for expert in self.experts],
+                expert_codes=self.generated_expert_code.copy())
 
-            if result['success']:
-                self.generated_kernel_code = result.get('code', '')
+            self.generated_kernel_code = result['code']
 
-                # Combine all expert and kernel code into a single string
-                all_code = "\n\n".join(
-                    [expert.code for expert in self.experts] + [self.generated_kernel_code])
+            # Combine all expert and kernel code into a single string
+            all_code = "\n\n".join(
+                [expert.code for expert in self.experts] + [self.generated_kernel_code])
 
-                # Use a unique name for the fake file to avoid cache collisions
-                # (this took me longer to figure out than I care to admit)
-                source_name = f"<poe_generated_kernel_{time.time_ns()}>"
+            # Use a unique name for the fake file to avoid cache collisions
+            # (this took me longer to figure out than I care to admit)
+            source_name = f"<poe_generated_kernel_{time.time_ns()}>"
 
-                # Put the combined code into linecache
-                linecache.cache[source_name] = (
-                    len(all_code), None, [
-                        line + '\n' for line in all_code.splitlines()], source_name)
+            # Put the combined code into linecache
+            linecache.cache[source_name] = (
+                len(all_code), None, [
+                    line + '\n' for line in all_code.splitlines()], source_name)
 
-                logger.info("Compiling combined expert and kernel code")
-                logger.debug(f"Combined Code:\n{all_code}")
+            logger.info("Compiling combined expert and kernel code")
+            logger.debug(f"Combined Code:\n{all_code}")
 
-                # Create a fresh namespace
-                namespace = {'ti': ti, 'np': np, 'tv': self.tv}
+            # Create a fresh namespace
+            namespace = {'ti': ti, 'np': np, 'tv': self.tv}
 
-                # Compile the combined code
-                code_obj = compile(all_code, source_name, 'exec')
-                exec(code_obj, namespace)
+            # Compile the combined code
+            code_obj = compile(all_code, source_name, 'exec')
+            exec(code_obj, namespace)
 
-                # Assign functions to experts
-                for expert in self.experts:
-                    if expert.name in namespace:
-                        expert.function = namespace[expert.name]
+            # Assign functions to experts
+            for expert in self.experts:
+                if expert.name in namespace:
+                    expert.function = namespace[expert.name]
 
-                self._integration_kernel = namespace[result['name']]
+            self._integration_kernel = namespace[result['name']]
 
-                logger.info("Integration kernel successfully regenerated")
-                return True
-            else:
-                logger.error(
-                    f"Failed to generate integration kernel: {result['errors']}")
-                return False
+            logger.info("Integration kernel successfully regenerated")
+            return True
 
         except Exception as e:
             synthesis_time_ms = (time.time() - start_time) * 1000

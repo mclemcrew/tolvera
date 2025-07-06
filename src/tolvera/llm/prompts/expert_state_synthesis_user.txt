@@ -1,0 +1,9 @@
+Generate the Taichi state structure for this behavior: "{description}"
+
+The state type should be: {state_type}
+The interaction type is: {interaction_type}
+
+IMPORTANT: When naming state fields, use descriptive but general names like:
+- "is_collided" instead of specific color/species names
+- "collision_state" for general collision tracking
+- Avoid overly specific field names that embed behavior logic

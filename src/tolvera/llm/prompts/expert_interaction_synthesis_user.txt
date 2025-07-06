@@ -1,0 +1,4 @@
+Generate the Taichi interaction function for this behavior: "{description}"
+
+The interaction type is: {interaction_type}
+{state_details}

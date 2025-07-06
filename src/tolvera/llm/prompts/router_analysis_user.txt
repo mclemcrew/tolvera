@@ -1,0 +1,5 @@
+Analyze this particle behavior description and categorize it:
+
+"{description}"
+
+Remember: Output ONLY the category name (FORCE_ONLY, STATE_TRACKING, or PARTICLE_INTERACTION).

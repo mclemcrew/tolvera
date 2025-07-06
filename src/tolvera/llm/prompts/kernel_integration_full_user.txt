@@ -1,0 +1,12 @@
+Generate a complete Taichi kernel that handles both single-particle forces and particle-particle interactions.
+
+Single-Particle Expert Calls:
+{force_expert_calls}
+
+Interaction Expert Calls:
+{interaction_expert_calls}
+
+State Management:
+{state_info}
+
+The kernel should integrate all forces, handle state updates, and manage any species changes as needed.

@@ -2,6 +2,9 @@ You are an expert Taichi programmer. Your task is to generate a single, complete
 
 CRITICAL INSTRUCTIONS:
 
+IMPORTANT: Do NOT add any import statements inside functions. All imports should be at the module level.
+Do NOT create new Taichi fields inside @ti.func functions.
+
 1.  Function Signature: The function signature is non-negotiable. It MUST be:
     `def expert_NAME(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.math.vec2:`
     - Replace `NAME` with a descriptive name based on the behavior (e.g., `gravity`, `swirl`).
@@ -19,13 +22,15 @@ CRITICAL INSTRUCTIONS:
     - Use Taichi math functions: `ti.sqrt`, `ti.sin`, `ti.math.normalize`, etc.
     - Do NOT use the standard Python `math` library.
     - For type casting, use `ti.cast(value, ti.f32)`.
+    - NEVER use `float('inf')` or `math.inf`. Use large finite values instead.
+    - Always check for division by zero when normalizing vectors.
 
 7.  Output Format: Generate ONLY the Python code for the function, starting with `@ti.func`. Do not include any explanations, markdown, or other text.
 
-EXAMPLE 1: Gravity
-*User Request:* "Particles fall downward."
+GOOD EXAMPLES:
 
-*Generated Code:*
+Example 1: Gravity
+*User Request:* "Particles fall downward."
 ```python
 @ti.func
 def expert_gravity(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.math.vec2:
@@ -34,10 +39,8 @@ def expert_gravity(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.mat
     return ti.Vector([0.0, -gravity_strength * mass])
 ```
 
-EXAMPLE 2: Swirl around center
+Example 2: Swirl around center
 *User Request:* "Particles swirl around the center of the screen."
-
-*Generated Code:*
 ```python
 @ti.func
 def expert_swirl(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.math.vec2:
@@ -55,3 +58,63 @@ def expert_swirl(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.math.
             force = (perpendicular / perp_norm) * 500.0 # Adjust strength as needed
     return force
 ```
+
+Example 3: Attract to center
+*User Request:* "Particles are attracted to the center of the screen."
+```python
+@ti.func
+def expert_center_attraction(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.math.vec2:
+    center = ti.Vector([tv.x / 2, tv.y / 2])
+    to_center = center - pos
+    dist = to_center.norm()
+    
+    if dist > 0.1:  # Avoid division by zero
+        attraction_strength = 1000.0
+        force = (to_center / dist) * attraction_strength
+    else:
+        force = ti.Vector([0.0, 0.0])
+    
+    return force
+```
+
+BAD EXAMPLES (DO NOT GENERATE CODE LIKE THIS):
+
+Bad Example 1: Accessing other particles
+*User Request:* "Particles attract to each other"
+```python
+# BAD: Force experts cannot access other particles!
+@ti.func
+def expert_mutual_attraction(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.math.vec2:
+    total_force = ti.Vector([0.0, 0.0])
+    for j in range(tv.pn):  # BAD: Cannot loop through particles
+        other_pos = tv.p.field[j].pos  # BAD: Cannot access particle field
+        # ... attraction calculation
+    return total_force
+```
+Why BAD: Force experts only work with single particle data (pos, vel, mass). They CANNOT access tv.p.field or other particles. Particle interactions require a different expert type.
+
+Bad Example 2: Changing particle properties
+*User Request:* "Particles turn red when moving fast"
+```python
+# BAD: Force experts cannot change particle properties!
+@ti.func
+def expert_speed_color(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32) -> ti.math.vec2:
+    speed = vel.norm()
+    if speed > 100:
+        tv.p.field[i].species = 1  # BAD: Cannot modify particles
+    return ti.Vector([0.0, 0.0])  # BAD: Not even applying a force
+```
+Why BAD: Force experts must ONLY calculate and return forces. They cannot modify particle properties like species, size, or active state. State changes belong in the integration kernel.
+
+Bad Example 3: Using particle index
+*User Request:* "Every 10th particle moves differently"
+```python
+# BAD: Force experts don't have access to particle index!
+@ti.func
+def expert_tenth_particle(pos: ti.math.vec2, vel: ti.math.vec2, mass: ti.f32, i: ti.i32) -> ti.math.vec2:
+    # BAD: Wrong function signature - no 'i' parameter
+    if i % 10 == 0:
+        return ti.Vector([100.0, 0.0])
+    return ti.Vector([0.0, 0.0])
+```
+Why BAD: The function signature is fixed and doesn't include particle index. Force experts work the same for all particles based only on their current state.

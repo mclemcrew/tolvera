@@ -7,6 +7,9 @@ This module provides the glue between the PoE expert system and Tölvera's parti
 
 from typing import Dict, Any, List
 import logging
+import taichi as ti
+import linecache
+import time
 
 from .poe_core import PoEBehaviorSystem, SimpleProgrammaticExpert
 from .poe_experts import ExpertManager
@@ -38,46 +41,85 @@ class TolveraBehaviorAgent:
             synthesizer: PoEExpertSynthesizer,
             weight: float = 1.0):
 
-        # Step 1: Synthesize expert @ti.func
-        logger.info(
-            f"Step 1: Synthesizing expert function for: '{description}'")
-        result = await synthesizer.synthesize_expert(description)
+        # Phase 1: Route the description using LLM
+        logger.info(f"Phase 1: Routing description: '{description}'")
+        category = await synthesizer.analyze_description(description)
 
-        if result["success"]:
-            expert = SimpleProgrammaticExpert(
-                name=result["name"],
-                code=result["code"],
-                weight=weight
+        logger.info(f"Routed to category: {category}")
+
+        # Phase 2: Generate state if needed
+        state_name = None
+        if category in ["PARTICLE_INTERACTION", "STATE_TRACKING"]:
+            logger.info(f"Phase 2: Generating state for: '{description}'")
+            state_result = await synthesizer.synthesize_state_from_description(
+                description, category
             )
-            expert.metadata["description"] = description
-            expert.metadata["raw_llm_response"] = result.get(
-                "raw_response", "")
 
-            # Log the generated expert code
+            # Execute state creation code
             logger.info(
-                f"Generated expert '{result['name']}' for description: '{description}'")
-            logger.debug(
-                f"Generated code for '{result['name']}':{result['code']}")
+                f"Executing state creation code for: {state_result['state_name']}")
 
-            self.poe_system.add_expert(expert)
-            self.expert_manager.add_expert(result["name"], expert)
+            # Use linecache approach similar to poe_core.py
+            source_name = f"<poe_generated_state_{time.time_ns()}>"
+            state_code = state_result["code"]
 
-            # Step 2: Regenerate integration @ti.kernel with all experts
-            logger.info(
-                f"Step 2: Regenerating integration kernel for {len(self.poe_system.experts)} experts")
-            kernel_success = await self.poe_system.regenerate_integration_kernel(synthesizer)
-            if not kernel_success:
-                logger.error(
-                    f"Expert {result['name']} added but kernel regeneration failed")
-                raise RuntimeError(
-                    f"Failed to regenerate integration kernel after adding expert {result['name']}")
+            # Put the code into linecache
+            linecache.cache[source_name] = (
+                len(state_code), None,
+                [line + '\n' for line in state_code.splitlines()],
+                source_name
+            )
 
-            logger.info(
-                f"Successfully added expert {result['name']} and regenerated integration kernel")
-            return expert
-        else:
-            logger.error(f"Failed to synthesize expert: {result['errors']}")
-            raise ValueError(f"Expert synthesis failed: {result['errors']}")
+            # Create a namespace with necessary imports and objects
+            namespace = {
+                'tv': self.tv,
+                'ti': ti,
+            }
+
+            # Compile and execute
+            code_obj = compile(state_code, source_name, 'exec')
+            exec(code_obj, namespace)
+
+            state_name = state_result["state_name"]
+
+            # Store state definition in PoE system
+            self.poe_system.add_state_definition(state_result)
+            logger.info(f"Successfully created state: {state_name}")
+
+        # Phase 3: Generate appropriate expert
+        logger.info(f"Phase 3: Synthesizing expert for: '{description}'")
+
+        result = await synthesizer.synthesize_expert(
+            description,
+            category,
+            state_info=state_result
+        )
+
+        expert = SimpleProgrammaticExpert(
+            name=result["name"],
+            code=result["code"],
+            weight=weight,
+            expert_type=result["expert_type"]
+        )
+        expert.metadata["description"] = description
+        expert.metadata["category"] = category
+        expert.metadata["associated_state"] = state_name
+
+        logger.info(
+            f"Generated {result['expert_type']} expert '{result['name']}' for: '{description}'")
+
+        self.poe_system.add_expert(expert)
+        self.expert_manager.add_expert(result["name"], expert)
+
+        # Phase 4: Regenerate integration kernel
+        logger.info(
+            f"Phase 4: Regenerating integration kernel for {len(self.poe_system.experts)} experts")
+
+        await self.poe_system.regenerate_integration_kernel(synthesizer, self.poe_system.state_definitions)
+
+        logger.info(
+            f"Successfully added expert {result['name']} and regenerated kernel")
+        return expert
 
     def set_expert_weight(self, expert_name: str, weight: float):
         self.poe_system.set_expert_weight(expert_name, weight)
